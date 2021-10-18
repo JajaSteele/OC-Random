@@ -36,6 +36,10 @@ i2 = 0
 h.setScale(0.33)
 h.setTranslation(0.020,0,0)
 
+h.setPaletteColor(1,1049861)
+h.setPaletteColor(2,3355562)
+h.setPaletteColor(3,328976)
+
 oldX,oldY = g.maxResolution()
 g.setResolution(5,2)
 tm.setCursor(1,1)
@@ -183,6 +187,10 @@ for i3=1, 32 do
 end
 
 cpr.beep(400,0.2)
+
+h.setPaletteColor(1,0xFF4444)
+h.setPaletteColor(2,0x44FF44)
+h.setPaletteColor(3,0x4444FF)
 
 for i4=1, 30 do
     h.setScale(i4/30)
