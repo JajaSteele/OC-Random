@@ -9,6 +9,7 @@ local srz = require("serialization")
 local wd = cp.webdisplays
 local keyboard = cp.keyboard
 local ct = require("computer")
+local shell = require("shell")
 
 -- Touch Eventt is :  _, address, X1, Y1, Button, Player = event.pull("touch")
 
@@ -279,6 +280,9 @@ while true do
         t.setCursor(1,maxY-1)
         t.write("> ")
         url2 = io.read()
+        if url2 == "reboot" or url2 == "reboot\n" then
+            ct.shutdown(true)
+        end
         if url2 ~= "" and url2 ~= "\n" then
             wd.setURL(url2)
         end
