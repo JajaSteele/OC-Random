@@ -9,7 +9,6 @@ local srz = require("serialization")
 local wd = cp.webdisplays
 local keyboard = cp.keyboard
 local ct = require("computer")
-local shell = require("shell")
 
 -- Touch Eventt is :  _, address, X1, Y1, Button, Player = event.pull("touch")
 
@@ -276,15 +275,21 @@ while true do
         t.setCursor(1,maxY)
         t.clearLine()
         t.setCursor(1,maxY-2)
-        t.write("Enter URL to open: ")
+        t.write("Enter \"URL:<text>\" or \"TYPE:<text>\" ")
         t.setCursor(1,maxY-1)
         t.write("> ")
-        url2 = io.read()
-        if url2 == "reboot" or url2 == "reboot\n" then
-            ct.shutdown(true)
+        text1 = io.read()
+        if string.sub(text1,1,3) == "URL" then
+            url2 = string.sub(text1,5,string.len(text1))
+            if url2 ~= "" and url2 ~= "\n" then
+                wd.setURL(url2)
+            end
         end
-        if url2 ~= "" and url2 ~= "\n" then
-            wd.setURL(url2)
+        if string.sub(text1,1,3) == "TYP" then
+            text2 = string.sub(text1,6,string.len(text1))
+            for i1=1, string.len(text2) do
+                wd.type(string.sub(text2,i1,i1))
+            end
         end
         t.setCursor(1,maxY-1)
         t.clearLine()
