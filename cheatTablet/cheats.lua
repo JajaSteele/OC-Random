@@ -7,6 +7,9 @@ local ct = require("computer")
 local shell = require("shell")
 local screen = cp.screen
 local db = cp.debug
+local fs = cp.filesystem
+local fs2 = require("filesystem")
+local sz = require("serialization")
 
 if cp.isAvailable("glasses") then
     gs = cp.glasses
@@ -16,6 +19,8 @@ if cp.isAvailable("glasses") then
 else
     gsON = false
 end
+
+local dirs = {n="north",s="south",w="west",e="east",u="up",d="down"}
 
 local function swrite(x1,y1,t1,c1,c2)
     oldC1 = g.getForeground()
@@ -50,6 +55,16 @@ local function clearL()
     mX,mY = g.getResolution()
     t.write(string.rep(" ", mX-baseX))
     t.setCursor(baseX,baseY)
+end
+
+local function cwrite(x1,y1,t1)
+    t.setCursor(x1,y1)
+    clearL()
+    t.write(t1)
+end
+
+local function tp(x1,y1,z1,v1,v2)
+    db.runCommand("tp @s "..x1.." "..y1.." "..z1)
 end
 
 local function jread2(xv1)
@@ -258,6 +273,7 @@ local function errorBox(x1,x2,t1,t2)
     g.setForeground(0xFFFF44)
     twrite(2,x1+1,t1)
     t.setCursor(string.len(t1)+5,x1+1)
+    clearL()
     cPrint(t2)
     g.setForeground(oldColor)
     t.setCursor(oldX,oldY)
@@ -270,8 +286,19 @@ local function drawBox(x1,x2,t1,t2)
     g.fill(string.len(t1)+3,x1,1,x2+2,"|")
     twrite(2,x1+1,t1)
     t.setCursor(string.len(t1)+5,x1+1)
+    clearL()
     cPrint(t2)
     t.setCursor(oldX,oldY)
+end
+
+local function noDec(x1)
+    x2 = tonumber(string.format("%.0f", x1))
+    return x2
+end
+
+local function rDec(x1,x2)
+    x2 = tonumber(string.format("%."..x2.."f", x1))
+    return x2
 end
 
 function updateG()
@@ -297,7 +324,11 @@ function updateG()
     g.fill(1,10,maxX,1,"-")
     twrite(2,9,"WorldEdit")
     g.fill(12,8,1,3,"|")
-    drawBox(11,1,"WE Selection","Pos1 X"..WEx.." Y"..WEy.." Z"..WEz.." | Pos2 X"..WEx1.." Y"..WEy1.." Z"..WEz1)
+    drawBox(11,1,"WE Selection","Pos1 X:"..WEx.." Y:"..WEy.." Z:"..WEz.." | Pos2 X:"..WEx1.." Y:"..WEy1.." Z:"..WEz1)
+    drawBox(14,1,"Set Symmetry Point","X:"..symX.." Y:"..symY.." Z:"..symZ.." | Dir: "..symD)
+    drawBox(17,1,"Symmetrize Dat!","Click Here to Symmetrize Selection")
+    drawBox(20,1,"Symmetrize Dat! x4","Click Here to Symmetrize Selection on 4 sides!")
+    drawBox(maxY-2,1,"Undo/Redo","< | >")
 end
 
 size = 1
@@ -317,6 +348,28 @@ WEz = 0
 WEx1 = 0
 WEy1 = 0
 WEz1 = 0
+
+check1 = io.open("/home/symSave.txt","r")
+
+if check1 ~= nil then
+    check1:close()
+    print("Loading symSave..")
+    file2 = io.open("/home/symSave.txt","r")
+    data2 = file2:read("*a")
+    print(data2)
+    table2 = sz.unserialize(data2)
+    symX = table2["x"]
+    symY = table2["y"]
+    symZ = table2["z"]
+    symD = table2["d"]
+    print(symX,symY,symZ,symD)
+    os.sleep(0.5)
+else
+    symX = 0
+    symY = 0
+    symZ = 0
+    symD = "None"
+end
 
 if gsON then
     title1 = gs.addText2D()
@@ -452,6 +505,7 @@ while true do
                 b4t.removeWidget()
                 b5t.removeWidget()
             end
+            os.sleep(0.5)
         end
     end
     if Y1 == 12 then
@@ -517,7 +571,88 @@ while true do
             title1.setText("--- WorldEdit Pos ---")
         end
     end
+    if Y1 == 15 then
+        symX = rDec(db.getX(),2)
+        symY = rDec(db.getY(),2)-1.85
+        symZ = rDec(db.getZ(),2)
+        cwrite(23,15,"Saved Coords X:"..symX.." Y:"..symY.." Z:"..symZ)
+        os.sleep(1)
+        t.setCursor(23,15)
+        clearL()
+        symDT = jread2("Enter Direction (n,w,s,e, u,d)")
+        if symDT == "n" or symDT == "w" or symDT == "s" or symDT == "e" or symDT == "u" or symDT == "d" then
+            cwrite(23,15,"Validated!")
+            symD = dirs[symDT]
+            file1 = io.open("/home/symSave.txt","w")
+            data1 = sz.serialize({x=symX,y=symY,z=symZ,d=symD})
+            file1:write(data1)
+            file1:close()
+            cwrite(23,15,"Successfully Saved")
+        else
+            errorBox(14,1,"ERROR","Wrong Direction Entered!")
+            os.sleep(3)
+            symX , symY, symZ = 0,0,0
+        end
+    end
+    if Y1 == 18 then
+        oldX1_ = noDec(db.getX())
+        oldY1_ = noDec(db.getY())
+        oldZ1_ = noDec(db.getZ())
+
+        if symX ~= 0 and  symY ~= 0 and symZ ~= 0 and symD ~= "None" then
+            tp(symX,symY,symZ)
+            os.sleep(0.2)
+            db.runCommand("//copy")
+            db.runCommand("//flip "..symD)
+            db.runCommand("//paste")
+            tp(oldX1_,oldY1_,oldZ1_)
+            os.sleep(0.2)
+            ct.beep(400,0.1)
+            ct.beep(700,0.2)
+        else
+            errorBox(17,1,"ERROR","Symmetry Point/Direction not set!")
+            ct.beep(300,0.1)
+            ct.beep(150,0.2)
+            os.sleep(3)
+        end
+    end
+    if Y1 == 21 then
+        oldX1_ = noDec(db.getX())
+        oldY1_ = noDec(db.getY())
+        oldZ1_ = noDec(db.getZ())
+
+        if symX ~= 0 and  symY ~= 0 and symZ ~= 0 then
+            tp(symX,symY,symZ)
+            os.sleep(0.2)
+            db.runCommand("//copy")
+            for i1=1, 4 do
+                db.runCommand("//rotate 90")
+                db.runCommand("//paste")
+                os.sleep(0.1)
+            end
+            tp(oldX1_,oldY1_,oldZ1_)
+            os.sleep(0.2)
+            ct.beep(400,0.1)
+            ct.beep(700,0.2)
+        else
+            errorBox(17,1,"ERROR","Symmetry Point not set!")
+            ct.beep(300,0.1)
+            ct.beep(150,0.2)
+            os.sleep(3)
+        end
+    end
+    if Y1 == 24 then
+        if X1 == 14 then
+            ct.beep(400,0.1)
+            db.runCommand("//undo")
+            cwrite(14,24,"Undone")
+            os.sleep(0.1)
+        elseif X1 == 18  then
+            ct.beep(500,0.1)
+            db.runCommand("//redo")
+            cwrite(14,24,"Redone")
+            os.sleep(0.1)
+        end
+    end
     updateG()
 end
-
-

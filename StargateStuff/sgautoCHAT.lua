@@ -4,6 +4,7 @@ local ct = require("computer")
 local colors = require("colors")
 local term = require("term")
 local g = cp.gpu
+local cb = cp.chat_box
 
 function waitState(x1,t1)
     repeat
@@ -57,6 +58,9 @@ function cprint(t1)
     oldX2,oldY2 = term.getCursor()
     term.setCursor(oldX,oldY2+1)
 end
+
+cb.setName("JajaSteele Ship")
+cb.say("Stargate Address: §b"..sg.localAddress())
 
 while true do
     local state,chevron,direction = sg.stargateState()
