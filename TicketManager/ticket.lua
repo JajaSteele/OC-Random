@@ -27,7 +27,6 @@ if io.open("/lib/json.lua","r") == nil then
     shell.execute("wget https://github.com/rxi/json.lua/raw/master/json.lua /lib/json.lua")
     json = require("json")
 else
-    print("JSON Lib Detected, loading")
     json = require("json")
 end
 
@@ -89,17 +88,20 @@ if args[1] == "setside" then
 end
 
 if args[1] == "new" then
-    print("Hello, Please Click the screen once!")
+    print("Click the screen for Signature")
 
     _, _, _, _, _, name1 = event.pull("touch")
 
     ID = string.format("%.0f", os.time())..string.format("%.0f", os.clock()*100)
+
+    smallid = string.sub(ID,string.len(ID)-3,string.len(ID))
 
     pr.writeln("Ticket Owner: "..name1)
     pr.writeln("Ticket ID: "..ID)
     pr.writeln("")
     pr.writeln("Single-Use",0xDD0000)
     pr.writeln("")
+    pr.setTitle("§fTicket of §7"..name1.."§f | §7"..smallid)
 
     fulltime = getTime()
     ftime = fulltime["hour"].."h"..fulltime["minute"].." ("..fulltime["seconds"].."s)"
@@ -119,7 +121,7 @@ if args[1] == "new" then
 end
 
 if args[1] == "copy" then
-    print("Hello, Please Click the screen once!")
+    print("Click the screen for Signature")
 
     _, _, _, _, _, name1 = event.pull("touch")
 
@@ -135,6 +137,7 @@ if args[1] == "copy" then
     name = string.sub(pr.scanLine(0),15,line1c-11)
     id = string.sub(pr.scanLine(1),12,line2c-11)
     timestamp = string.sub(pr.scanLine(5),18,line5c-11)
+    smallid = string.sub(id,string.len(id)-3,string.len(id))
 
     print(name,id)
 
@@ -144,6 +147,7 @@ if args[1] == "copy" then
     pr.writeln("")
     pr.writeln("Single-Use (COPY FOR ARCHIVE)",0xDD0000)
     pr.writeln("")
+    pr.setTitle("§c-COPY- §fTicket of §7"..name1.."§f | §7"..smallid)
     pr.writeln("Print Timestamp: "..timestamp.."(OG)")
     fulltime = getTime()
     ftime = fulltime["hour"].."h"..fulltime["minute"].." ("..fulltime["seconds"].."s)"
@@ -159,21 +163,39 @@ if args[1] == "copy" then
 end
 
 if args[1] == "use" then
-
     if tr.getStackInSlot(in1,1) then
+        print("Name:"..tr.getStackInSlot(in1,1)["label"])
+        if string.sub(tr.getStackInSlot(in1,1)["label"],4,9) == "-COPY-" then
+            ct.beep(150,0.2)
+            print("Copies of tickets are not accepted!")
+            return
+        end
         if tr.getStackInSlot(in1,1)["name"] == "openprinter:printed_page" and tr.getStackInSlot(print1,1) == nil then
             tr.transferItem(in1,print1)
         else
-            print("Warning, item is not a ticket, emptied into output")
-            tr.transferItem(in1,out1)
-            return
+            if tr.getStackInSlot(print1,1) ~= nil then
+                print("Item already inside printer")
+            else
+                print("Warning, item is not a ticket (Or printer is full), emptied into output")
+                tr.transferItem(in1,out1)
+                return
+            end
         end
     else
-        print("Warning, input is empty")
-        return
+        if string.sub(tr.getStackInSlot(print1,1)["label"],4,9) == "-COPY-" then
+            ct.beep(150,0.2)
+            print("Copies of tickets are not accepted!")
+            return
+        end
+        if tr.getStackInSlot(print1,1) ~= nil then
+            print("Item already inside printer")
+        else
+            print("Warning, input is empty")
+            return
+        end
     end
 
-    print("Hello, Please Click the screen once!")
+    print("Click the screen for Signature")
 
     _, _, _, _, _, name1 = event.pull("touch")
 
@@ -189,6 +211,7 @@ if args[1] == "use" then
     name = string.sub(pr.scanLine(0),15,line1c-11)
     id = string.sub(pr.scanLine(1),12,line2c-11)
     timestamp = string.sub(pr.scanLine(5),18,line5c-11)
+    smallid = string.sub(id,string.len(id)-3,string.len(id))
 
     data1 = {
         type="use",
@@ -211,8 +234,14 @@ if args[1] == "use" then
         ct.beep(1400,0.2)
         tr.transferItem(print1,shred1)
     else
-        if dataresult[2] == "v1" then error = "You're not Ticket's Owner" end
-        if dataresult[2] == "v2" then error = "Wrong Timestamp!" end
-        print("REFUSED : "..error)
+        if dataresult[2] == "v1" then error = "Invalid Signature!" end
+        if dataresult[2] == "v2" then error = "Invalid Timestamp!" end
+        if dataresult[2] == "v3" then error = "Timestamp and Signature are invalid!" end
+        if dataresult[2] == "v4" then error = "Invalid ticket! Do not duplicate tickets you frickin' pirate!" end
+        print("REFUSED, reason: "..error)
+        if dataresult[2] == "v4" then
+            print("Shredding Fake Copy..")
+            tr.transferItem(print1,shred1)
+        end
     end
 end
