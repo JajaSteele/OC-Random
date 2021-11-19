@@ -6,15 +6,12 @@ local g = cp.gpu
 local fs = cp.filesystem
 local fs2 = require("filesystem")
 local srz = require("serialization")
-local keyboard = cp.keyboard
 local ct = require("computer")
 local shell = require("shell")
 local internet = require("internet")
 local sides = require("sides")
 local data = cp.data
 local rs = cp.redstone
-
-cb = cp.chat_box
 
 local args = shell.parse(...)
 
