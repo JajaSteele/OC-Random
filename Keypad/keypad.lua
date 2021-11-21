@@ -15,6 +15,31 @@ local rs = cp.redstone
 
 local args = shell.parse(...)
 
+if cp.isAvailable("os_rolldoorcontroller") then
+    rd = cp.os_rolldoorcontroller
+    rd1 = true
+else
+    rd1 = false
+end
+
+local function openrd()
+    if rd1 then
+        rd.open()
+        return true
+    else
+        return false
+    end
+end
+
+local function closerd()
+    if rd1 then
+        rd.close()
+        return true
+    else
+        return false
+    end
+end
+
 local function writeChar(x1,y1,t1)
     g.fill(x1,y1,1,1,t1)
 end
@@ -286,7 +311,9 @@ while errorCount < 5 do
                     ct.beep(300,0.2)
                     ct.beep(400,0.2)
                     rs.setOutput(sides[side1],15)
+                    openrd()
                     os.sleep(timer1)
+                    closerd()
                     rs.setOutput(sides[side1],0)
                 else
                     paintB(1,1,7,1,0xFF4444)
@@ -353,7 +380,7 @@ while errorCount < 5 do
     ct.beep(300,0.1)
     ct.beep(50,0.2)
     g.setBackground(0x000000)
-    os.sleep(1)
+    os.sleep(5)
 end
 
 ct.beep(700,0.1)
