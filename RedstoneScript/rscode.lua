@@ -19,10 +19,10 @@ while true do
         end
     else
         if oldV == 0 and newV > 0 then
-            shell.execute("/home/rs/rsON"..colors[colorV]..".lua")
+            shell.execute("/home/rs/rsON_"..colors[colorV]..".lua")
         end
         if oldV > 0 and newV == 0 then
-            shell.execute("/home/rs/rsOFF"..colors[colorV]..".lua")
+            shell.execute("/home/rs/rsOFF_"..colors[colorV]..".lua")
         end
     end
 end
