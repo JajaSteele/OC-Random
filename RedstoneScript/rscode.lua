@@ -14,7 +14,6 @@ while true do
     print("--RS Change Detected--")
     print("New Signal: "..newV.."\nOld Signal: "..oldV.."\nSide: "..sides[side])
     if colorV == nil then
-        print("Color: "..colors[colorV])
         if oldV == 0 and newV > 0 then
             shell.execute("/home/rs/rsON.lua")
         end
@@ -22,6 +21,7 @@ while true do
             shell.execute("/home/rs/rsOFF.lua")
         end
     else
+        print("Color: "..colors[colorV])
         if oldV == 0 and newV > 0 then
             shell.execute("/home/rs/rsON_"..colors[colorV]..".lua")
         end
