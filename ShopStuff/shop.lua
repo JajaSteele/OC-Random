@@ -22,7 +22,36 @@ else
     dbs = false
 end
 
+local function dbc(t1)
+    if dbs then
+        cb.say(t1)
+    end
+end
+
+if cp.isAvailable("openprinter") then
+    prs = true
+    pr = cp.openprinter
+    dbc("Printer detected")
+else
+    prs = false
+    pr = nil
+    dbc("No printer")
+end
+
 stat, err = pcall(function()
+
+    local function round(t1)
+        return tonumber(string.format("%.0f",t1))
+    end
+
+    local function tckt(t1,t2,t3,t4,t5,t6,t7)
+        if prs then
+            pr[t1](t2,t3,t4,t5,t6,t7)
+            return true
+        else
+            return false
+        end
+    end
 
     local function fstext(t1)
         g.setResolution(string.len(t1),1)
@@ -32,12 +61,6 @@ stat, err = pcall(function()
 
     local function getres(v1)
         select(v1,g.getResolution())
-    end
-
-    local function dbc(t1)
-        if dbs then
-            cb.say(t1)
-        end
     end
 
     local function getInvAmount(s1)
@@ -263,6 +286,8 @@ stat, err = pcall(function()
 
     cart1 = {}
 
+    player1 = nil
+
     while true do
         t.setCursor(1,30)
         amount3 = 0
@@ -279,100 +304,125 @@ stat, err = pcall(function()
         g.setForeground(0xFFFFFF)
 
         _, _, t_x1, t_y1, t_b1, t_pl1 = event.pull("touch")
-
-        dbc("Clicked")
-
-        if t_y1 == 33 then
-            if cart1 ~= nil then
-                ct.beep(800,0.05)
-                ct.beep(800,0.05)
-                ct.beep(800,0.05)
-                for k,v in pairs(cart1) do
-                    if v > 0 then
-                        amount4 = tp.transferItem(sides.north,sides.up,v,inventory1[k])
-                        tp.transferItem(sides.east,sides.down,amount4*pricelist[k])
-                    end
-                end
-                res2 = 0
-                for i1=1, tp.getInventorySize(sides.east) do
-                    res1 = tp.transferItem(sides.east,sides.top)
-                    if res1 == 0 then
-                        res2 = res2+1
-                    end
-                    if res2 == 3 then
-                        break
-                    end
-                end
-                res2 = 0
-                for i1=1, tp.getInventorySize(sides.south) do
-                    res1 = tp.transferItem(sides.south,sides.top)
-                    if res1 == 0 then
-                        res2 = res2+1
-                    end
-                    if res2 == 3 then
-                        break
-                    end
-                end
-                ct.beep(500,0.05)
-                break
-            end
+        if player1 == nil then
+            player1 = t_pl1
         end
 
-        if (t_y1-1) <= tp.getInventorySize(sides.north) and (t_y1-1) ~= 0 then
-            stack = tp.getStackInSlot(sides.north,t_y1-1)
-            dbc("Valid Stack")
-        else
-            stack = nil
-            dbc("Out of Bound")
-        end
-
-        if stack ~= nil then
-            dbc("Stack isn't nil")
-            if t_b1 == 0 then
-                dbc("Left Click")
-                if pricelist[string.gsub(stack["name"],":","___")] <= amount2-used_amount1 then
-                    item_name1 = string.gsub(stack["name"],":","___")
-                    if cart1[item_name1] == nil then
-                        cart1[item_name1] = 0
-                    end
-                    cart1[item_name1] = cart1[item_name1]+1
-                    local char,fg,bg = g.get(11+maxLabel1+14,t_y1)
-                    g.setBackground(bg)
-                    t.setCursor(11+maxLabel1+12,t_y1)
-                    t.write("| ")
-                    g.setForeground(fg)
-                    t.write("x"..cart1[item_name1])
-                    rst_color()
-                    used_amount1 = (used_amount1+pricelist[string.gsub(stack["name"],":","___")])
+        if t_pl1 == player1 then
+            if t_y1 == 33 then
+                if cart1 ~= nil then
                     ct.beep(800,0.05)
-                else
-                    ct.beep(100,0.2)
+                    ct.beep(800,0.05)
+                    ct.beep(800,0.05)
+                    amount5 = 0
+
+                    tckt("setTitle","Order Ticket "..math.random(10,99))
+                    tckt("writeln","§b§lJ§3§lJ§1§lS§8-§0Laboratories")
+                    tckt("writeln","§l§m---------")
+                    tckt("writeln","§lOrder List :")
+
+                    for k,v in pairs(cart1) do
+                        if v > 0 then
+                            amount4 = tp.transferItem(sides.north,sides.up,v,inventory1[k])
+                            tckt("writeln",string.gsub(k,"___",":").." §8x"..v)
+                            tckt("writeln","§8 Price: "..(pricelist[k]*v).." Credits §7("..pricelist[k].."/unit)")
+                        end
+                    end
+                    tckt("writeln","§l§m---------")
+                    while (amount5 ~= used_amount1) do
+                        amount5 = amount5+tp.transferItem(sides.east,sides.down,used_amount1-amount5)
+                        dbc(tostring(amount5))
+                    end
+
+                    tckt("writeln","Total: §8"..amount5.." Credits")
+                    tckt("writeln","Leftover: §8"..(amount2-used_amount1).." Credits")
+                    tckt("writeln","§l§m---------")
+                    tckt("writeln","Buyer: §8"..player1)
+
+                    os.sleep(0.5)
+                    res2 = 0
+
+                    for i1=1, tp.getInventorySize(sides.east) do
+                        res1 = tp.transferItem(sides.east,sides.top)
+                        if res1 == 0 then
+                            res2 = res2+1
+                        end
+                        if res2 == 3 then
+                            break
+                        end
+                    end
+
+                    res2 = 0
+
+                    for i1=1, tp.getInventorySize(sides.south) do
+                        res1 = tp.transferItem(sides.south,sides.top)
+                        if res1 == 0 then
+                            res2 = res2+1
+                        end
+                        if res2 == 3 then
+                            break
+                        end
+                    end
+
+                    ct.beep(500,0.05)
+                    tckt("print")
+                    break
                 end
             end
-            if t_b1 == 1 then
-                dbc("Right Click")
-                if pricelist[string.gsub(stack["name"],":","___")] <= used_amount1 then
-                    item_name1 = string.gsub(stack["name"],":","___")
-                    if cart1[item_name1] ~= nil then
-                        if cart1[item_name1] > 0 then
-                            used_amount1 = (used_amount1-pricelist[string.gsub(stack["name"],":","___")])
-                            cart1[item_name1] = cart1[item_name1]-1
-                            local char,fg,bg = g.get(11+maxLabel1+14,t_y1)
-                            g.setBackground(bg)
-                            t.setCursor(11+maxLabel1+12,t_y1)
-                            t.write("| ")
-                            g.setForeground(fg)
-                            t.write("x"..cart1[item_name1])
-                            rst_color()
-                            ct.beep(200,0.05)
+
+            if (t_y1-1) <= tp.getInventorySize(sides.north) and (t_y1-1) ~= 0 then
+                stack = tp.getStackInSlot(sides.north,t_y1-1)
+            else
+                stack = nil
+            end
+
+            if stack ~= nil then
+                if t_b1 == 0 then
+                    dbc("Added "..stack["name"])
+                    if pricelist[string.gsub(stack["name"],":","___")] <= amount2-used_amount1 then
+                        item_name1 = string.gsub(stack["name"],":","___")
+                        if cart1[item_name1] == nil then
+                            cart1[item_name1] = 0
+                        end
+                        cart1[item_name1] = cart1[item_name1]+1
+                        local char,fg,bg = g.get(11+maxLabel1+14,t_y1)
+                        g.setBackground(bg)
+                        t.setCursor(11+maxLabel1+12,t_y1)
+                        t.write("| ")
+                        g.setForeground(fg)
+                        t.write("x"..cart1[item_name1])
+                        rst_color()
+                        used_amount1 = (used_amount1+pricelist[string.gsub(stack["name"],":","___")])
+                        ct.beep(800,0.05)
+                    else
+                        ct.beep(100,0.2)
+                    end
+                end
+                if t_b1 == 1 then
+                    dbc("Removed "..stack["name"])
+                    if pricelist[string.gsub(stack["name"],":","___")] <= used_amount1 then
+                        item_name1 = string.gsub(stack["name"],":","___")
+                        if cart1[item_name1] ~= nil then
+                            if cart1[item_name1] > 0 then
+                                used_amount1 = (used_amount1-pricelist[string.gsub(stack["name"],":","___")])
+                                cart1[item_name1] = cart1[item_name1]-1
+                                local char,fg,bg = g.get(11+maxLabel1+14,t_y1)
+                                g.setBackground(bg)
+                                t.setCursor(11+maxLabel1+12,t_y1)
+                                t.write("| ")
+                                g.setForeground(fg)
+                                t.write("x"..cart1[item_name1])
+                                rst_color()
+                                ct.beep(200,0.05)
+                            else
+                                ct.beep(100,0.2)
+                            end
                         else
                             ct.beep(100,0.2)
                         end
                     else
                         ct.beep(100,0.2)
                     end
-                else
-                    ct.beep(100,0.2)
                 end
             end
         end
