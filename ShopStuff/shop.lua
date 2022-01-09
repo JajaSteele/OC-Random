@@ -91,7 +91,7 @@ stat, err = pcall(function()
         pl_file2:close()
     end
 
-    fstext("Welcome to the market!")
+    fstext("Welcome to the market! Insert coins to start")
 
     while tp.getSlotStackSize(sides.south,1) < 1 do
         os.sleep(0.05)
@@ -102,7 +102,7 @@ stat, err = pcall(function()
     t.setCursor(1,1)
     t.write("Credits Amount: ")
     writetxt(1,2,"(Kinda slow to update)")
-    writetxt(1,3,"Click screen to continue")
+    writetxt(1,3,"Click screen to confirm")
 
     oldX , oldY = t.getCursor()
 
@@ -218,10 +218,10 @@ stat, err = pcall(function()
             if pricelist[string.gsub(stack["name"],":","___")] ~= nil then
                 price = pricelist[string.gsub(stack["name"],":","___")].." Credits"
             else
-                price = "Unknown"
+                price = " "
             end
         else
-            price = "Unknown"
+            price = " "
         end
 
         t.write(price)
@@ -296,6 +296,16 @@ stat, err = pcall(function()
                 res2 = 0
                 for i1=1, tp.getInventorySize(sides.east) do
                     res1 = tp.transferItem(sides.east,sides.top)
+                    if res1 == 0 then
+                        res2 = res2+1
+                    end
+                    if res2 == 3 then
+                        break
+                    end
+                end
+                res2 = 0
+                for i1=1, tp.getInventorySize(sides.south) do
+                    res1 = tp.transferItem(sides.south,sides.top)
                     if res1 == 0 then
                         res2 = res2+1
                     end
@@ -379,4 +389,15 @@ if not stat then
     t.clear()
     t.setCursor(1,1)
     print(err)
+    if err == "interrupted" then
+        ct.beep(500,0.25)
+        component = require("component")
+        gpu = component.gpu
+        gpu.setResolution(38,1)
+        term = require("term")
+        term.setCursor(1,1)
+        term.write("Do not terminate this program dumbass")
+        os.sleep(2)
+        ct.shutdown(true)
+    end
 end
