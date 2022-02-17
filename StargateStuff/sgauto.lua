@@ -58,6 +58,10 @@ function cprint(t1)
     term.setCursor(oldX,oldY2+1)
 end
 
+t1 = io.open("/home/.shrc","w")
+t1:write("sgauto.lua")
+t1:close()
+
 while true do
     local state,chevron,direction = sg.stargateState()
     if state == "Dialling" then
