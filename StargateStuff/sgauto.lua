@@ -5,13 +5,47 @@ local colors = require("colors")
 local term = require("term")
 local internet = require("internet")
 local keyboard = require("keyboard")
+local thread = require("thread")
 local g = cp.gpu
+local sides = require("sides")
+
 
 if io.open("/lib/json.lua","r") then
     json = require("json")
 else
     os.execute("wget https://github.com/rxi/json.lua/raw/master/json.lua /lib/json.lua")
     json = require("json")
+end
+
+if cp.isAvailable("redstone") then
+    redstoneMode = true
+    redstone = cp.redstone
+else
+    redstoneMode = false
+end
+
+function rsBundled(side,color,power)
+    if redstoneMode then
+        redstone.setBundledOutput(side,color,power)
+    end
+end
+
+function rsBundled_a(color,power)
+    if redstoneMode then
+        for i1=1, 6 do
+            redstone.setBundledOutput(i1-1,color,power)
+        end
+    end
+end
+
+function rsBundled_a2(power)
+    if redstoneMode then
+        for i1=1, 6 do
+            for i2=1, 16 do
+                redstone.setBundledOutput(i1-1,i2-1,power)
+            end
+        end
+    end
 end
 
 function waitState(x1,t1)
@@ -75,16 +109,22 @@ function cprint(t1)
     term.setCursor(oldX,oldY2+1)
 end
 
-os.sleep(0.5)
+os.sleep(1)
 if keyboard.isAltDown() then return end
+
+
+rsBundled_a2(0)
 
 while true do
     local state,chevron,direction = sg.stargateState()
     if state == "Dialling" then
+        rsBundled_a(colors.orange,255)
         if direction == "Incoming" then
             dirtext = "#0x44FF44 [-->]"
+            rsBundled_a(colors.white,255)
         else
             dirtext = "#0xFF4444 [<--]"
+            rsBundled_a(colors.white,0)
         end
         time = getTime("Europe/Amsterdam")
         cprint("#0xFFFFFF [|-|] #0xBBBBBB <"..time["hour"]..":"..time["minute"]..":"..time["seconds"].."> Connection Detected!\n      Address: "..sg.remoteAddress().."\n      Direction: "..direction.." "..dirtext)
@@ -95,12 +135,18 @@ while true do
         ct.beep(800,0.2)
         waitChevr(string.len(sg.remoteAddress())-3,0.1)
         sg.closeIris()
+        rsBundled_a(colors.red,255)
         waitState("Connected",0.01)
         cprint("#0x44FF44 [<->] <"..time["hour"]..":"..time["minute"]..":"..time["seconds"].."> Connection Opened.")
+        rsBundled_a(colors.lime,255)
         os.sleep(2.25)
         sg.openIris()
+        rsBundled_a(colors.red,0)
         waitState("Idle",0.01)
         cprint("#0xFF4444 [>-<] <"..time["hour"]..":"..time["minute"]..":"..time["seconds"].."> Connection Ended.")
+        rsBundled_a(colors.lime,0)
+        rsBundled_a(colors.white,0)
+        rsBundled_a(colors.orange,0)
         ct.beep(300,0.2)
         os.sleep(0.15)
         ct.beep(150,0.2)
