@@ -115,6 +115,8 @@ if keyboard.isAltDown() then return end
 
 rsBundled_a2(0)
 
+term.write("SG-Auto Software Initialized!")
+
 while true do
     local state,chevron,direction = sg.stargateState()
     if state == "Dialling" then
