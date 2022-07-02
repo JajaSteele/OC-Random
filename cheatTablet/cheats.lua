@@ -617,9 +617,9 @@ while true do
         end
     end
     if Y1 == 21 then
-        oldX1_ = noDec(db.getX())
-        oldY1_ = noDec(db.getY())
-        oldZ1_ = noDec(db.getZ())
+        oldX1_ = db.getX()
+        oldY1_ = db.getY()
+        oldZ1_ = db.getZ()
 
         if symX ~= 0 and  symY ~= 0 and symZ ~= 0 then
             tp(symX,symY,symZ)
