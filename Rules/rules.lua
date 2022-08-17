@@ -3,6 +3,7 @@ local term = require("term")
 local gpu = component.gpu
 local rs = component.redstone
 local ct = require("computer")
+local event = require("event")
 
 local function slowprint(t)
     for i1=1, t:len() do
