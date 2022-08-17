@@ -8,6 +8,7 @@ local keyboard = require("keyboard")
 local thread = require("thread")
 local g = cp.gpu
 local sides = require("sides")
+local event = require("event")
 
 
 if io.open("/lib/json.lua","r") then
@@ -109,13 +110,36 @@ function cprint(t1)
     term.setCursor(oldX,oldY2+1)
 end
 
+function altDial(_, _, arg1, arg2)
+    if arg1 == "altdial" and arg2 ~= nil then
+        cprint("#0xFFFFFF [|-|] #0xBBBBBB <"..time["hour"]..":"..time["minute"]..":"..time["seconds"].."> Transfer Mode!\n      Address: "..sg.remoteAddress().."\n      Transferring to: "..arg2 )
+        computer.beep(500,1)
+        sg.disconnect()
+        os.sleep(4)
+        sg.closeIris()
+        sg.dial(arg2)
+        repeat
+            _, _, newState = event.pull(2,"sgStargateStateChange")
+        until newState == "Connected" or newState == "Idle"
+        sg.openIris()
+        ct.beep(300,0.1)
+        os.sleep(0.15)
+        ct.beep(560,0.1)
+        os.sleep(0.25)
+        ct.beep(800,0.2)
+    end
+end
+    
+
 os.sleep(1)
 if keyboard.isAltDown() then return end
 
 
 rsBundled_a2(0)
 
-term.write("SG-Auto Software Initialized!")
+event.listen("sgMessageReceived",altDial)
+
+print("SG-Auto Software Initialized!")
 
 while true do
     local state,chevron,direction = sg.stargateState()

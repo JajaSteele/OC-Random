@@ -623,12 +623,12 @@ while true do
 
         if symX ~= 0 and  symY ~= 0 and symZ ~= 0 then
             tp(symX,symY,symZ)
-            os.sleep(0.2)
+            os.sleep(0.5)
             db.runCommand("//copy")
             for i1=1, 4 do
                 db.runCommand("//rotate 90")
                 db.runCommand("//paste")
-                os.sleep(0.1)
+                os.sleep(0.25)
             end
             tp(oldX1_,oldY1_,oldZ1_)
             os.sleep(0.2)
