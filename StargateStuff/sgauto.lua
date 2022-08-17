@@ -114,6 +114,7 @@ function altDial(_, _, arg1, arg2)
     if arg1 == "altdial" and arg2 ~= nil then
         cprint("#0xFFFFFF [|-|] #0xBBBBBB <"..time["hour"]..":"..time["minute"]..":"..time["seconds"].."> Transfer Mode!\n      Address: "..sg.remoteAddress().."\n      Transferring to: "..arg2 )
         computer.beep(500,1)
+        os.sleep(3)
         sg.disconnect()
         os.sleep(4)
         sg.closeIris()
