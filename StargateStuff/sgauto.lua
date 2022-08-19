@@ -115,7 +115,9 @@ function altDial(_, _, arg1, arg2)
         cprint("#0xFFFFFF [|-|] #0xBBBBBB <"..time["hour"]..":"..time["minute"]..":"..time["seconds"].."> Transfer Mode!\n      Address: "..sg.remoteAddress().."\n      Transferring to: "..arg2 )
         ct.beep(500,1)
         sg.disconnect()
-        os.sleep(4)
+        repeat
+            _, _, newState = event.pull(2,"sgStargateStateChange")
+        until newState == "Idle"
         sg.closeIris()
         sg.dial(arg2)
         repeat
