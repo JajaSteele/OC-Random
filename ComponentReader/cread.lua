@@ -3,6 +3,8 @@ local term = require("term")
 local event = require("event")
 local g = component.gpu
 
+local function clamp(x,min,max) if x > max then return max elseif x < min then return min else return x end end
+
 local function hex_to_rgb(hex)
     local r = (hex >> 16) & 0xFF
     local g = (hex >> 8) & 0xFF
@@ -82,6 +84,7 @@ local current_history = {}
 local display_path = {}
 
 local clickmap = {}
+local scroll = 0
 
 local color_map = {
     table = 0x662288,
@@ -91,104 +94,129 @@ local color_map = {
     boolean = 0x882233
 }
 
+local drawBuffer = g.allocateBuffer()
 
-local scroll = 0
-
-while true do
-    fill(1,1, width, 3, 0xBBBBBB)
-    fill(1,4,width,height, 0x959595)
-    local last_path_x, last_path_y = 2,2
-    last_path_x, last_path_y = write(last_path_x,last_path_y, "Current: ", 0x454545, 0xBBBBBB)
-    for k,v in ipairs(display_path) do
-        last_path_x, last_path_y = write(last_path_x,last_path_y, v, 0x454578, 0xBBBBBB)
-        if k ~= #display_path then
-            last_path_x, last_path_y = write(last_path_x,last_path_y, "/", 0x000033, 0xBBBBBB)
-        end
-    end
-    local pos = 0
-    clickmap = {}
-    local current_sorted = {}
-    for k,v in pairs(current) do
-        current_sorted[#current_sorted+1] = {
-            key=k,  
-            value=v
-        }
-    end
-    table.sort(current_sorted, function (a, b)
-        return a.key < b.key
-    end)
-    for sort_k,sort_v in ipairs(current_sorted) do
-        local v = sort_v.value
-        local k = sort_v.key
-        local last_x,last_y = write(3, 5+pos, k, 0x222222, 0x959595)
-        local last_x,last_y = write(last_x+1, last_y, type(v), 0x454545, 0x959595)
-        if type(v) == "table" then
-            if type((getmetatable(v) or {}).__call) == "function" then
-                clickmap[last_y] = {
-                    type="setCurrentFunc",
-                    value=v,
-                    display=k
-                }
-                write(last_x+1, last_y, "(Function)", color_map["function"], 0x959595)
-            else
-                clickmap[last_y] = {
-                    type="setCurrent",
-                    value=v,
-                    display=k
-                }
-                local count = 0
-                for _ in pairs(v) do
-                    count=count+1
-                end
-                write(last_x+1, last_y, "("..count..")", color_map.table, 0x959595)
+local stat, err = pcall(function()
+    while true do
+        g.setActiveBuffer(drawBuffer)
+        fill(1,1, width, 3, 0xBBBBBB)
+        fill(1,4,width,height, 0x959595)
+        local last_path_x, last_path_y = 2,2
+        last_path_x, last_path_y = write(last_path_x,last_path_y, "Current: ", 0x454545, 0xBBBBBB)
+        for k,v in ipairs(display_path) do
+            last_path_x, last_path_y = write(last_path_x,last_path_y, v, 0x454578, 0xBBBBBB)
+            if k ~= #display_path then
+                last_path_x, last_path_y = write(last_path_x,last_path_y, "/", 0x000033, 0xBBBBBB)
             end
-        elseif type(v) == "number" then
-            write(last_x+1, last_y, "("..v..")", color_map.number, 0x959595)
-        elseif type(v) == "string" then
-            write(last_x+1, last_y, "("..v..")", color_map.string, 0x959595)
-        elseif type(v) == "boolean" then
-            write(last_x+1, last_y, "("..(v and "True" or "False")..")", color_map.boolean, 0x959595)
         end
-        pos = pos+1
-        if pos > height-6 then
-            break
+        local pos = 0
+        clickmap = {}
+        local current_sorted = {}
+        for k,v in pairs(current) do
+            current_sorted[#current_sorted+1] = {
+                key=k,  
+                value=v
+            }
         end
-    end
-    local ev_data = {event.pull()}
-
-    if ev_data[1] == "touch" then
-        local name, addr, click_x, click_y, click_b, user = table.unpack(ev_data)
-        local click = clickmap[click_y]
-        if click_b == 0 then
-            if click then
-                if click.type == "setCurrent" and click.value then
-                    current_history[#current_history+1] = current
-                    current = click.value
-                    display_path[#display_path+1] = click.display
-                elseif click.type == "setCurrentFunc" and click.value then
-                    current_history[#current_history+1] = current
-                    local func_data = {pcall(click.value)}
-                    if func_data[1] then
-                        table.remove(func_data, 1)
-                        current = func_data
-                    else
-                        component.computer.beep(100, 0.125)
-                        current = {
-                            func_data[2],
-                            "THIS IS NOT WHAT THE FUNCTION RETURNED",
-                            "THIS ONLY EXISTS TO SHOW THE ERROR",
+        table.sort(current_sorted, function (a, b)
+            return a.key < b.key
+        end)
+        for i1=1, #current_sorted do
+            local sort_v = current_sorted[i1+scroll]
+            if sort_v then
+                local v = sort_v.value
+                local k = sort_v.key
+                local last_x,last_y = write(3, 5+pos, k, 0x222222, 0x959595)
+                local last_x,last_y = write(last_x+1, last_y, type(v), 0x454545, 0x959595)
+                if type(v) == "table" then
+                    if type((getmetatable(v) or {}).__call) == "function" then
+                        clickmap[last_y] = {
+                            type="setCurrentFunc",
+                            value=v,
+                            display=k
                         }
+                        write(last_x+1, last_y, "(Function)", color_map["function"], 0x959595)
+                    else
+                        clickmap[last_y] = {
+                            type="setCurrent",
+                            value=v,
+                            display=k
+                        }
+                        local count = 0
+                        for _ in pairs(v) do
+                            count=count+1
+                        end
+                        write(last_x+1, last_y, "("..count..")", color_map.table, 0x959595)
                     end
-                    display_path[#display_path+1] = click.display.."()"
+                elseif type(v) == "number" then
+                    write(last_x+1, last_y, "("..v..")", color_map.number, 0x959595)
+                elseif type(v) == "string" then
+                    write(last_x+1, last_y, "("..v..")", color_map.string, 0x959595)
+                elseif type(v) == "boolean" then
+                    write(last_x+1, last_y, "("..(v and "True" or "False")..")", color_map.boolean, 0x959595)
                 end
+                pos = pos+1
             end
-        elseif click_b == 1 then
-            if #current_history > 0 then
-                current = table.remove(current_history, #current_history)
-                table.remove(display_path, #display_path)
-            else
-                component.computer.beep(100, 0.125)
+            if pos > height-6 then
+                break
             end
         end
+        g.bitblt(0, 1,1, width, height, 1, 1, 1)
+        g.setActiveBuffer(0)
+        local ev_data = {event.pull()}
+
+        if ev_data[1] == "touch" then
+            local name, addr, click_x, click_y, click_b, user = table.unpack(ev_data)
+            local click = clickmap[click_y]
+            if click_b == 0 then
+                if click then
+                    if click.type == "setCurrent" and click.value then
+                        current_history[#current_history+1] = {
+                            data = current,
+                            scroll = scroll
+                        }
+                        scroll = 0
+                        current = click.value
+                        display_path[#display_path+1] = click.display
+                    elseif click.type == "setCurrentFunc" and click.value then
+                        current_history[#current_history+1] = {
+                        data = current,
+                            scroll = scroll
+                        }
+                        scroll = 0
+                        local func_data = {pcall(click.value)}
+                        if func_data[1] then
+                            table.remove(func_data, 1)
+                            current = func_data
+                        else
+                            component.computer.beep(100, 0.125)
+                            current = {
+                                func_data[2],
+                                "THIS IS NOT WHAT THE FUNCTION RETURNED",
+                                "THIS ONLY EXISTS TO SHOW THE ERROR",
+                            }
+                        end
+                        display_path[#display_path+1] = click.display.."()"
+                    end
+                end
+            elseif click_b == 1 then
+                if #current_history > 0 then
+                    local history_entry = table.remove(current_history, #current_history)
+                    current = history_entry.data
+                    scroll = history_entry.scroll
+                    table.remove(display_path, #display_path)
+                else
+                    component.computer.beep(100, 0.125)
+                end
+            end
+        elseif ev_data[1] == "scroll" then
+            local name, addr, scroll_x, scroll_y, direction, user = table.unpack(ev_data)
+            scroll = clamp(scroll-(direction*3), 0, math.max(#current_sorted-(height-6), 0))
+        end
     end
-end
+end)
+
+g.setActiveBuffer(0)
+g.freeBuffer(drawBuffer)
+term.clear()
+term.setCursor(1,1)
