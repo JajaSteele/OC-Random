@@ -39,11 +39,13 @@ if not engine.state.running then
     end
     v.setMagnetoActive(0, true)
     v.setStarterActive(0, true)
+    v.setThrottle(0.25)
     repeat
         engine = v.getEngines()[0]
         os.sleep(0.25)
     until engine.rpm >= engine.definition.engine.startRPM and engine.state.running
     v.setStarterActive(0, false)
+    v.setThrottle(0)
 end
 
 g.setResolution(10,2)
