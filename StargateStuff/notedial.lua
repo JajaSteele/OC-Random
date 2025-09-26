@@ -152,7 +152,7 @@ local def = require("jjs/deflate")
 local function engageSymbol(symbol, forceSpin)
     if dhd and not forceSpin then
         dhd.pressButton(symbol)
-        os.sleep(0.75)
+        os.sleep(0.85)
     else
         sg.engageSymbol(symbol)
         event.pull(10, "stargate_spin_chevron_engaged")
