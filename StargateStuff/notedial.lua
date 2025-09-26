@@ -160,7 +160,7 @@ local function engageSymbol(symbol, forceSpin)
     else
         sg.engageSymbol(symbol)
         print(symbol)
-        event.pull(10, "stargate_spin_chevron_engaged")
+        event.pull(30, "stargate_spin_chevron_engaged")
     end
 end
 
