@@ -96,4 +96,10 @@ while true do
     end
 end
 
+print("Enter a Label (optional)")
+local label = io.read()
+if label ~= "" then
+    tape.setLabel(label)
+end
+
 tape.seek(-tape_size)
