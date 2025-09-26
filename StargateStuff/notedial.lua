@@ -5,8 +5,8 @@ local comp = require("component")
 local event = require("event")
 local inv = comp.inventory_controller
 
-local dhd = component.dhd
-local sg = component.stargate
+local dhd = comp.dhd
+local sg = comp.stargate
 
 local symbolTypeNames = {
     [0] = "Milky Way",
