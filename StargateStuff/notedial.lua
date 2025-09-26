@@ -5,7 +5,10 @@ local comp = require("component")
 local event = require("event")
 local inv = comp.inventory_controller
 
-local dhd = comp.dhd
+local dhd
+if comp.isAvailable("dhd") then
+    dhd = comp.dhd
+end
 local sg = comp.stargate
 
 local symbolTypeNames = {
