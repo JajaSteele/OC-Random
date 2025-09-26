@@ -153,7 +153,7 @@ local function requireany(...)
 end
 
 
-local crc32 = require "crc32" . crc32_byte
+--local crc32 = require "crc32" . crc32_byte
 local bit, name_ = requireany('bit', 'bit32', 'bit.numberlua', nil)
 
 local DEBUG = false
