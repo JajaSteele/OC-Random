@@ -246,7 +246,12 @@ print("Dialing..")
 for k,v in ipairs(full_address) do
     engageSymbol(v)
 end
-engageSymbol("Point of Origin")
+
+if symbol_type == 2 then
+    engageSymbol("Glyph 17")
+else
+    engageSymbol("Point of Origin")
+end
 
 if not setIris(false) then
     os.sleep(1.5)
