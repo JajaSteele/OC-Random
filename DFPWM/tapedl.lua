@@ -1,14 +1,26 @@
 local component = require("component")
+local term = require("term")
 
 local internet = component.internet
 local tape = component.tape_drive
 
-print("Enter youtube ID:")
+term.clear()
+
+print("Enter Youtube ID:")
 local id = io.read()
+
+print("High Quality Mode? (y/n):")
+print("(will double file size)")
+local hq = io.read()
+if hq == "true" or hq == "y" or hq == "1" or hq == "" then
+    hq = true
+else
+    hq = false
+end
 
 local tape_size = tape.getSize()
 
-local req = internet.request("http://jajasteele.mooo.com:7277/?vidid="..id.."&hq=true")
+local req = internet.request("http://jajasteele.mooo.com:7277/?vidid="..id.."&hq="..tostring(hq))
 print("Requesting DFPWM..")
 repeat
     os.sleep(0.5)
@@ -26,6 +38,9 @@ end
 
 tape.seek(-tape_size)
 
+print("Starting download..")
+local dl_x, dl_y = term.getCursor()
+local w,h = term.gpu().getResolution()
 local count = 0
 while true do
     local chunk, reason = req.read(size)
@@ -37,7 +52,14 @@ while true do
     elseif #chunk > 0 then
         count = count+#chunk
         tape.write(chunk)
-        print(string.format("%.1f%%", (count/size)*100))
+        local perc = (count/size)
+        term.setCursor(1, dl_y)
+        term.clearLine()
+        term.write(string.format("Progress: %.1f%%", perc*100))
+        term.setCursor(1, dl_y+1)
+        term.clearLine()
+        term.write(string.rep("=", w*(perc)))
+        --print(string.format("%.1f%%", (count/size)*100))
     else
         
     end
