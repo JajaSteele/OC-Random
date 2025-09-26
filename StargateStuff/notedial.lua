@@ -246,6 +246,9 @@ end
 
 print("Dialing..")
 for k,v in ipairs(full_address) do
+    if symbol_type == 2 and k == #full_address then
+        break
+    end
     engageSymbol(v)
 end
 
