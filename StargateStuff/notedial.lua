@@ -252,9 +252,17 @@ end
 sg.engageGate()
 
 print("Waiting for gate to disconnect..")
-event.pull(nil, "stargate_wormhole_closed_fully")
+while true do
+    local ev = {event.pull()}
+    if ev[1] == "stargate_wormhole_closed_fully" then
+        print("Gate disconnected, closing iris..")
+        break
+    elseif ev[1] == "stargate_failed" then
+        print("Gate failure: "..ev[4].."\nclosing iris..")
+        break
+    end
+end
 
-print("Gate disconnected, closing iris..")
 setIris(true)
 
 print("Goodbye.")
