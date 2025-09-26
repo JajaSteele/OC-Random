@@ -17,15 +17,22 @@ print("Response received")
 local rcode, rmsg, rhead = req.response()
 local size = tonumber(rhead["Content-Length"][1])
 print(rcode, rmsg)
-print("Size: "..size)
+print("Tape Size: "..tape_size)
+print("File Size: "..size)
+
+if tape_size < size then
+    print("WARNING! Tape size is smaller than file size! Song will be cut randomly")
+end
 
 tape.seek(-tape_size)
---tape.seek(-512)
 
 local count = 0
 while true do
     local chunk, reason = req.read(size)
     if not chunk then
+        break
+    elseif count >= tape_size then
+        print("WARNING! Reached end of tape!")
         break
     elseif #chunk > 0 then
         count = count+#chunk
