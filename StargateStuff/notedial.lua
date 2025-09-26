@@ -258,7 +258,8 @@ while true do
         print("Gate disconnected, closing iris..")
         break
     elseif ev[1] == "stargate_failed" then
-        print("Gate failure: "..ev[4].."\nclosing iris..")
+        print('Gate failure "'..ev[4]..'", closing iris..')
+        os.sleep(3)
         break
     end
 end
