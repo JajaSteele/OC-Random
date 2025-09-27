@@ -9,7 +9,22 @@ local dhd
 if comp.isAvailable("dhd") then
     dhd = comp.dhd
 end
-local sg = comp.stargate
+
+local sg_count = 0
+local sg_map = {}
+for address, _ in pairs(comp.list("stargate")) do
+    sg_map[comp.invoke(address, "getGateType")] = comp.proxy(address)
+    sg_count = sg_count+1
+end
+local sg
+
+print("Detected "..sg_count.." connected gates")
+
+local symbolTypeToGate = {
+    [0] = "MILKYWAY",
+    [1] = "PEGASUS",
+    [2] = "UNIVERSE",
+}
 
 local symbolTypeNames = {
     [0] = "Milky Way",
@@ -164,16 +179,20 @@ local function engageSymbol(symbol, forceSpin)
     end
 end
 
-local function setIris(close)
+local function setIris(close, noWait)
     local state = sg.getIrisState()
 
     if close and (state == "OPENING" or state == "OPENED") then
         sg.toggleIris()
-        event.pull(5, "stargate_iris_closed")
+        if not noWait then
+            event.pull(5, "stargate_iris_closed")
+        end
         return true
     elseif not close and (state == "CLOSING" or state == "CLOSED") then
         sg.toggleIris()
-        event.pull(5, "stargate_iris_opened")
+        if not noWait then
+            event.pull(5, "stargate_iris_opened")
+        end
         return true
     end
     return false
@@ -230,6 +249,12 @@ until not new_symbol
 
 print("Detected "..(symbolTypeNames[symbol_type] or "UNKNOWN").." address with "..#raw_address.." symbols.")
 
+sg = sg_map[symbolTypeToGate[symbol_type] or "UNKNOWN"]
+if not sg then
+    print("Couldn't find a gate of type "..(symbolTypeToGate[symbol_type] or "UNKNOWN"))
+    return
+end
+
 local full_address = {}
 for k,v in ipairs(raw_address) do
     full_address[#full_address+1] = symbolIndex[symbol_type][v]
@@ -240,6 +265,9 @@ print("Full Address:")
 print(table.concat(full_address, ", "))
 
 if #decodeDialed(sg.dialedAddress) > 0 then
+    if sg.getGateStatus() == "open" then
+        sg.disengageGate()
+    end
     sg.abortDialing()
     os.sleep(3)
 end
@@ -252,10 +280,12 @@ for k,v in ipairs(full_address) do
     engageSymbol(v)
 end
 
-if symbol_type == 2 then
-    engageSymbol("Glyph 17")
-else
+if symbol_type == 0 then
     engageSymbol("Point of Origin")
+elseif symbol_type == 1 then
+    engageSymbol("Subido")
+elseif symbol_type == 2 then
+    engageSymbol("Glyph 17")
 end
 
 if not setIris(false) then
@@ -265,16 +295,25 @@ end
 sg.engageGate()
 
 print("Waiting for gate to disconnect..")
-while true do
-    local ev = {event.pull()}
-    if ev[1] == "stargate_wormhole_closed_fully" then
-        print("Gate disconnected, closing iris..")
-        break
-    elseif ev[1] == "stargate_failed" then
-        print('Gate failure "'..ev[4]..'", closing iris..')
-        os.sleep(3)
-        break
+local stat, err = pcall(function ()
+    while true do
+        local ev = {event.pull()}
+        if ev[1] == "stargate_wormhole_closed_fully" then
+            print("Gate disconnected, closing iris..")
+            break
+        elseif ev[1] == "stargate_failed" then
+            print('Gate failure "'..ev[4]..'", closing iris..')
+            os.sleep(3)
+            break
+        end
     end
+end)
+
+if not stat then
+    sg.abortDialing()
+    sg.disengageGate()
+    setIris(true, true)
+    error(err)
 end
 
 setIris(true)
