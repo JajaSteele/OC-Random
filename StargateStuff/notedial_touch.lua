@@ -1,4 +1,4 @@
-local script_version = "1.0"
+local script_version = "1.1"
 -- AUTO UPDATE STUFF
 local curr_script = debug.getinfo(2, "S").source:gsub("^=", "")
 local script_io = io.open(curr_script, "r")
@@ -21,6 +21,7 @@ end
 local local_version = getVersionNumbers(local_version_line)
 
 print("Local Version: "..string.format("%d.%d", table.unpack(local_version)))
+print("Current script path: "..curr_script)
 
 local comp = require("component")
 
@@ -31,24 +32,25 @@ if comp.isAvailable("internet") then
     if update_request then
         local script_version = getVersionNumbers(getVersion(update_request))
         print("Remote Version: "..string.format("%d.%d", table.unpack(script_version)))
-
         if script_version[1] > local_version[1] or (script_version[1] == local_version[1] and script_version[2] > local_version[2]) then
             print("Remote version is newer, updating local")
             os.sleep(0.5)
             local full_update_request = internet.request(update_source)
             if full_update_request then
                 local local_io = io.open(curr_script, "w")
-                for chunk in full_update_request do
-
+                if local_io then
+                    for chunk in full_update_request do
+                        local_io:write(chunk)
+                    end
+                    local_io:close()
+                    print("Updated local script!")
+                    os.sleep(0.5)
+                    print("REBOOTING")
+                    os.sleep(0.5)
+                    require("computer").shutdown(true)
+                else
+                    print("Couldn't open file '"..curr_script.."'")
                 end
-                
-                local_io:write(full_script)
-                local_io:close()
-                print("Updated local script!")
-                sleep(0.5)
-                print("REBOOTING")
-                sleep(0.5)
-                os.reboot()
             else
                 print("Full update request failed")
             end
