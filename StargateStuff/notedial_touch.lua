@@ -10,6 +10,8 @@ local term = require("term")
 local screen = comp.screen
 local gpu = comp.gpu
 
+local iris_code = "270706"
+
 local color = {
     topbar = 0x7d8eb0,
     bg1 = 0x99BBFF,
@@ -237,29 +239,29 @@ end
 local nbt = require("jjs/nbt")
 local def = require("jjs/deflate")
 
-local function engageSymbol(symbol, forceSpin)
+local function engageSymbol(symbol, forceSpin, stargate)
     if dhd and not forceSpin then
         local _, fb = dhd.pressButton(symbol)
         os.sleep(0.85)
         return fb
     else
-        sg.engageSymbol(symbol)
+        (stargate or sg).engageSymbol(symbol)
         event.pull(30, "stargate_spin_chevron_engaged")
         return true
     end
 end
 
-local function setIris(close, noWait)
-    local state = sg.getIrisState()
+local function setIris(close, noWait, stargate)
+    local state = (stargate or sg).getIrisState()
 
     if close and (state == "OPENING" or state == "OPENED") then
-        sg.toggleIris()
+        (stargate or sg).toggleIris()
         if not noWait then
             event.pull(5, "stargate_iris_closed")
         end
         return true
     elseif not close and (state == "CLOSING" or state == "CLOSED") then
-        sg.toggleIris()
+        (stargate or sg).toggleIris()
         if not noWait then
             event.pull(5, "stargate_iris_opened")
         end
@@ -323,6 +325,9 @@ end
 local drawBuffer = gpu.allocateBuffer()
 
 local touch_mode = false
+if #screen.getKeyboards() == 0 then
+    touch_mode = true
+end
 
 local no_glyph_upgrade = false
 
@@ -358,9 +363,19 @@ local stat, err = pcall(function()
                     end
                 end
             elseif ev[1] == "received_code" then
-                if ev[4] == 270706 then
-                    setIris(false, true)
+                feedback("Opening iris (GDO Code)")
+                local sg = comp.proxy(ev[2])
+                if ev[4] == iris_code then
+                    sg.sendMessageToIncoming("Code accepted, opening iris..")
+                    setIris(false, false, sg)
+                    sg.sendMessageToIncoming("§aIris open!")
+                else
+                    sg.sendMessageToIncoming("§cInvalid code!")
                 end
+            elseif ev[1] == "stargate_wormhole_closed_fully" then
+                feedback("Closing iris (Wormhole closed)")
+                local sg = comp.proxy(ev[2])
+                setIris(true, true, sg)
             end
         end
     end)
@@ -422,15 +437,22 @@ local stat, err = pcall(function()
                 feedback("Engaging gate")
                 os.sleep(1.5)
                 sg.engageGate()
+                sg.sendIrisCode(iris_code)
                 dial_step = dial_step+1
             elseif dial_step == #raw_address+4 then
+                feedback("Waiting for gate to open fully")
+                if sg.getGateStatus() == "open" or sg.getGateStatus() == "unstable" then
+                    event.pull(5, "stargate_wormhole_stabilized")
+                end
+                dial_step = dial_step+1
+            elseif dial_step == #raw_address+5 then
                 feedback("Waiting for gate to close")
                 if sg.getGateStatus() == "open" or sg.getGateStatus() == "unstable" then
                     event.pull(nil, "stargate_wormhole_closed_fully")
                     setIris(true, true)
                 end
                 dial_step = dial_step+1
-            elseif dial_step == #raw_address+5 then
+            elseif dial_step == #raw_address+6 then
                 feedback("Ready")
                 dialing_active = false
                 dial_step = 0
