@@ -1,7 +1,62 @@
+local script_version = "1.0"
+-- AUTO UPDATE STUFF
+local curr_script = debug.getinfo(2, "S").source:gsub("^=", "")
+local script_io = io.open(curr_script, "r")
+local local_version_line = script_io:read()
+script_io:close()
+
+local function getVersionNumbers(first_line)
+    local major, minor, patch = first_line:match("local script_version = \"(%d+)%.(%d+)\"")
+    return {tonumber(major) or 0, tonumber(minor) or 0}
+end
+local function readLine(req)
+    req.read()
+end
+
+local local_version = getVersionNumbers(local_version_line)
+
+print("Local Version: "..string.format("%d.%d", table.unpack(local_version)))
+
+local comp = require("component")
+
+local update_source = "https://raw.githubusercontent.com/JajaSteele/OC-Random/refs/heads/main/StargateStuff/notedial_touch.lua"
+if comp.isAvailable("internet") then
+    local internet = require("internet")
+    local update_request = internet.request(update_source)
+    if update_request then
+        local script_version_line = update_request.readLine()
+        update_request:close()
+        local script_version = getVersionNumbers(script_version_line)
+        print("Remote Version: "..string.format("%d.%d", table.unpack(script_version)))
+
+        if script_version[1] > local_version[1] or (script_version[1] == local_version[1] and script_version[2] > local_version[2]) then
+            print("Remote version is newer, updating local")
+            sleep(0.5)
+            local full_update_request = http.get(update_source)
+            if full_update_request then
+                local full_script = full_update_request.readAll()
+                full_update_request:close()
+                local local_io = io.open(curr_script, "w")
+                local_io:write(full_script)
+                local_io:close()
+                print("Updated local script!")
+                sleep(0.5)
+                print("REBOOTING")
+                sleep(0.5)
+                os.reboot()
+            else
+                print("Full update request failed")
+            end
+        end
+    else
+        print("Update request failed")
+    end
+end
+-- END OF AUTO UPDATE
+
 local fs = require("filesystem")
 local sides = require("sides")
 local ser = require("serialization")
-local comp = require("component")
 local event = require("event")
 local thread = require("thread")
 local kb = require("keyboard")
