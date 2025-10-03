@@ -10,6 +10,21 @@ local term = require("term")
 local screen = comp.screen
 local gpu = comp.gpu
 
+if not fs.isDirectory("/lib/jjs") then
+    print("Creating /lib/jjs directory..")
+    fs.makeDirectory("/lib/jjs")
+end
+
+if not fs.exists("/lib/jjs/deflate.lua") then
+    os.execute("wget https://raw.githubusercontent.com/JajaSteele/OC-Random/refs/heads/main/NBT%20Reader/deflate.lua /lib/jjs/deflate.lua")
+end
+if not fs.exists("/lib/jjs/nbt.lua") then
+    os.execute("wget https://raw.githubusercontent.com/JajaSteele/OC-Random/refs/heads/main/NBT%20Reader/nbt.lua /lib/jjs/nbt.lua")
+end
+
+local nbt = require("jjs/nbt")
+local def = require("jjs/deflate")
+
 local iris_code = "270706"
 
 local color = {
@@ -45,7 +60,7 @@ local function write(x,y, text, fg, bg, clearLine)
         term.clearLine()
     end
     term.setCursor(x,y)
-    term.write(text)
+    term.write(text, false)
     local new_x, new_y = term.getCursor()
     term.setCursor(old_x, old_y)
 
@@ -84,13 +99,15 @@ for address, _ in pairs(comp.list("stargate")) do
 end
 local sg
 
-local width, height = gpu.getResolution()
+local width, height = gpu.maxResolution()
 local ratio_x, ratio_y = screen.getAspectRatio()
 local ratio = ratio_x/ratio_y
 height = math.min(width,height,25)
 width = math.min(math.floor(height*ratio)*2, width)
 
 gpu.setResolution(width, height)
+event.pull("screen_resized")
+term.getViewport()
 
 local symbolTypeToGate = {
     [0] = "MILKYWAY",
@@ -224,21 +241,6 @@ local symbolIndex = {
     }
 }
 
-if not fs.isDirectory("/lib/jjs") then
-    print("Creating /lib/jjs directory..")
-    fs.makeDirectory("/lib/jjs")
-end
-
-if not fs.exists("/lib/jjs/deflate.lua") then
-    os.execute("wget https://raw.githubusercontent.com/JajaSteele/OC-Random/refs/heads/main/NBT%20Reader/deflate.lua /lib/jjs/deflate.lua")
-end
-if not fs.exists("/lib/jjs/nbt.lua") then
-    os.execute("wget https://raw.githubusercontent.com/JajaSteele/OC-Random/refs/heads/main/NBT%20Reader/nbt.lua /lib/jjs/nbt.lua")
-end
-
-local nbt = require("jjs/nbt")
-local def = require("jjs/deflate")
-
 local function engageSymbol(symbol, forceSpin, stargate)
     if dhd and not forceSpin then
         local _, fb = dhd.pressButton(symbol)
@@ -322,7 +324,7 @@ local function feedback(msg)
     }
 end
 
-local drawBuffer = gpu.allocateBuffer()
+local drawBuffer = gpu.allocateBuffer(width, height)
 
 local touch_mode = false
 if #screen.getKeyboards() == 0 then
@@ -376,6 +378,17 @@ local stat, err = pcall(function()
                 feedback("Closing iris (Wormhole closed)")
                 local sg = comp.proxy(ev[2])
                 setIris(true, true, sg)
+            elseif ev[1] == "interrupted" then
+                renderThread:kill()
+                sgThread:kill()
+                eventThread:kill()
+
+                gpu.setActiveBuffer(0)
+                gpu.setResolution(gpu.maxResolution())
+                gpu.freeBuffer(drawBuffer)
+                term.clear()
+                term.setCursor(1,1)
+                return
             end
         end
     end)
@@ -473,8 +486,6 @@ local stat, err = pcall(function()
                 local lw = write(2,height-1, string.format("%.0fs ago", math.floor((timeTick()-last_error.time)/20)), color.texterror2, color.bgerror)
                 lw = write(lw+1,height-1, ">", color.texterror, color.bgerror)
                 write(lw+1,height-1, last_error.msg, color.texterror, color.bgerror)
-
-                --write(1,height, math.floor(last_error.timeout/2).."s", color.texterror, color.bgerror)
             else
                 fill(1,height-2,width,height,color.bgfeedback)
                 if last_feedback.msg then
@@ -571,8 +582,7 @@ local stat, err = pcall(function()
                 local lw = write(2,6, "Inserted Item: ", color.text2, color.bg1, true)
                 write(lw,6, "NONE", color.textbright, color.bg1)
             end
-            gpu.bitblt(0, 1,1, width, height, 1, 1, 1)
-            gpu.setActiveBuffer(0)
+            gpu.bitblt(0, 1,1, width, height, drawBuffer, 1, 1)
             os.sleep(0.5)
         end
     end)
@@ -591,50 +601,3 @@ term.clear()
 term.setCursor(1,1)
 
 if not stat then error(err) end
-
-if true then return end
-
-print("Dialing..")
-for k,v in ipairs(full_address) do
-    if symbol_type == 2 and k == #full_address then
-        break
-    end
-    engageSymbol(v)
-end
-
-if not setIris(false) then
-    os.sleep(1.5)
-end
-
-sg.engageGate()
-
-print("Waiting for gate to disconnect..")
-local stat, err = pcall(function ()
-    while true do
-        local ev = {event.pull()}
-        if ev[1] == "stargate_wormhole_closed_fully" then
-            print("Gate disconnected, closing iris..")
-            break
-        elseif ev[1] == "stargate_failed" then
-            print('Gate failure "'..ev[4]..'", closing iris..')
-            os.sleep(3)
-            break
-        end
-    end
-end)
-
-if not stat then
-    sg.abortDialing()
-    sg.disengageGate()
-    setIris(true, true)
-    error(err)
-end
-
-setIris(true)
-
-print("Goodbye.")
-
---for line in display:gmatch("(.-)\n") do
---    print(line)
---    event.pull(nil, "key_down")
---end
