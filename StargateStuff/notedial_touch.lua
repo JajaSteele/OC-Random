@@ -9,8 +9,13 @@ local function getVersionNumbers(first_line)
     local major, minor, patch = first_line:match("local script_version = \"(%d+)%.(%d+)\"")
     return {tonumber(major) or 0, tonumber(minor) or 0}
 end
-local function readLine(req)
-    req.read()
+local function getVersion(req)
+    for chunk in req do
+        local version_line = chunk:match([[local script_version = "%d+%.%d+"]])
+        if version_line then
+            return version_line
+        end
+    end
 end
 
 local local_version = getVersionNumbers(local_version_line)
@@ -24,19 +29,19 @@ if comp.isAvailable("internet") then
     local internet = require("internet")
     local update_request = internet.request(update_source)
     if update_request then
-        local script_version_line = update_request.readLine()
-        update_request:close()
-        local script_version = getVersionNumbers(script_version_line)
+        local script_version = getVersionNumbers(getVersion(update_request))
         print("Remote Version: "..string.format("%d.%d", table.unpack(script_version)))
 
         if script_version[1] > local_version[1] or (script_version[1] == local_version[1] and script_version[2] > local_version[2]) then
             print("Remote version is newer, updating local")
-            sleep(0.5)
-            local full_update_request = http.get(update_source)
+            os.sleep(0.5)
+            local full_update_request = internet.request(update_source)
             if full_update_request then
-                local full_script = full_update_request.readAll()
-                full_update_request:close()
                 local local_io = io.open(curr_script, "w")
+                for chunk in full_update_request do
+
+                end
+                
                 local_io:write(full_script)
                 local_io:close()
                 print("Updated local script!")
