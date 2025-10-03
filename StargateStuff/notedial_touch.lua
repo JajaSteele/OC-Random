@@ -1,4 +1,4 @@
-local script_version = "1.1"
+local script_version = "1.2"
 -- AUTO UPDATE STUFF
 local curr_script = debug.getinfo(2, "S").source:gsub("^=", "")
 local script_io = io.open(curr_script, "r")
@@ -50,14 +50,19 @@ if comp.isAvailable("internet") then
                     require("computer").shutdown(true)
                 else
                     print("Couldn't open file '"..curr_script.."'")
+                    os.sleep(0.5)
                 end
             else
                 print("Full update request failed")
+                os.sleep(0.5)
             end
         end
     else
         print("Update request failed")
+        os.sleep(0.5)
     end
+else
+    print("No internet card available")
 end
 -- END OF AUTO UPDATE
 
