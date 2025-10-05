@@ -1,4 +1,4 @@
-local script_version = "1.3"
+local script_version = "1.4"
 -- AUTO UPDATE STUFF
 local curr_script = debug.getinfo(2, "S").source:gsub("^=", "")
 local script_io = io.open(curr_script, "r")
@@ -614,7 +614,8 @@ local stat, err = pcall(function()
                     end
                 end
 
-                write(2,2, "Automatic Note Dialer",color.text1, color.topbar)
+                local lw = write(2,2, "Automatic Note Dialer",color.text1, color.topbar)
+                write(lw,2, " V"..script_version, color.textbright, color.topbar)
                 local lw = write(2,3, "Available Gates: ", color.text2, color.topbar)
                 write(lw,3, tostring(sg_count), color.textbright, color.topbar)
                 local stack = inv.getStackInSlot(sides.top, 1)
