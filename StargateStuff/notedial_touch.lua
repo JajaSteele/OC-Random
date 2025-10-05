@@ -1,4 +1,4 @@
-local script_version = "1.2"
+local script_version = "1.3"
 -- AUTO UPDATE STUFF
 local curr_script = debug.getinfo(2, "S").source:gsub("^=", "")
 local script_io = io.open(curr_script, "r")
@@ -72,10 +72,18 @@ local ser = require("serialization")
 local event = require("event")
 local thread = require("thread")
 local kb = require("keyboard")
+local computer = require("computer")
 local inv = comp.inventory_controller
 local term = require("term")
 local screen = comp.screen
 local gpu = comp.gpu
+
+local function DEBUG(txt)
+    if comp.isAvailable("chat_box") then
+        comp.chat_box.setName("DEBUG")
+        comp.chat_box.say(tostring(txt))
+    end
+end
 
 if not fs.isDirectory("/lib/jjs") then
     print("Creating /lib/jjs directory..")
@@ -409,249 +417,294 @@ local renderThread
 local eventThread
 local sgThread
 
+local function errorx(err)
+    renderThread:kill()
+    sgThread:kill()
+    eventThread:kill()
+
+    computer.beep(200,3)
+
+    gpu.setActiveBuffer(0)
+    gpu.setResolution(gpu.maxResolution())
+    gpu.freeBuffer(drawBuffer)
+    term.clear()
+    term.setCursor(1,1)
+
+    print(err)
+    error(err)
+end
+
 local stat, err = pcall(function()
     eventThread = thread.create(function()
-        while true do
-            local ev = {event.pull()}
-            if ev[1] == "stargate_failed" then
-                softError("SG FAIL: "..ev[4])
-                dialing_active = false
-                dial_step = 0
-            elseif ev[1] == "touch" then
-                if touch_mode then
-                    if not (dialing_active or start_dial) then
-                        start_dial = true
-                        event.push("jjs_dialing_update")
+        local stat_t, err_t = pcall(function()
+            while true do
+                local ev = {event.pull()}
+                if ev[1] == "stargate_failed" then
+                    softError("SG FAIL: "..ev[4])
+                    dialing_active = false
+                    dial_step = 0
+                elseif ev[1] == "touch" then
+                    if touch_mode then
+                        if not (dialing_active or start_dial) then
+                            start_dial = true
+                            event.push("jjs_dialing_update")
+                        end
                     end
-                end
-            elseif ev[1] == "key_down" then
-                if ev[4] == kb.keys.enter then
-                    if not touch_mode and not (dialing_active or start_dial) then
-                        start_dial = true
-                        event.push("jjs_dialing_update")
+                elseif ev[1] == "key_down" then
+                    if ev[4] == kb.keys.enter then
+                        if not touch_mode and not (dialing_active or start_dial) then
+                            start_dial = true
+                            event.push("jjs_dialing_update")
+                        end
                     end
-                end
-            elseif ev[1] == "received_code" then
-                feedback("Opening iris (GDO Code)")
-                local sg = comp.proxy(ev[2])
-                if ev[4] == iris_code then
-                    sg.sendMessageToIncoming("Code accepted, opening iris..")
-                    setIris(false, false, sg)
-                    sg.sendMessageToIncoming("§aIris open!")
-                else
-                    sg.sendMessageToIncoming("§cInvalid code!")
-                end
-            elseif ev[1] == "stargate_wormhole_closed_fully" then
-                feedback("Closing iris (Wormhole closed)")
-                local sg = comp.proxy(ev[2])
-                setIris(true, true, sg)
-            elseif ev[1] == "interrupted" then
-                renderThread:kill()
-                sgThread:kill()
-                eventThread:kill()
+                elseif ev[1] == "received_code" then
+                    feedback("Opening iris (GDO Code)")
+                    local sg = comp.proxy(ev[2])
+                    if ev[4] == iris_code then
+                        sg.sendMessageToIncoming("Code accepted, opening iris..")
+                        setIris(false, false, sg)
+                        sg.sendMessageToIncoming("§aIris open!")
+                    else
+                        sg.sendMessageToIncoming("§cInvalid code!")
+                    end
+                elseif ev[1] == "stargate_wormhole_closed_fully" then
+                    feedback("Closing iris (Wormhole closed)")
+                    local sg = comp.proxy(ev[2])
+                    setIris(true, true, sg)
+                elseif ev[1] == "interrupted" then
+                    renderThread:kill()
+                    sgThread:kill()
+                    eventThread:kill()
 
-                gpu.setActiveBuffer(0)
-                gpu.setResolution(gpu.maxResolution())
-                gpu.freeBuffer(drawBuffer)
-                term.clear()
-                term.setCursor(1,1)
-                return
+                    gpu.setActiveBuffer(0)
+                    gpu.setResolution(gpu.maxResolution())
+                    gpu.freeBuffer(drawBuffer)
+                    term.clear()
+                    term.setCursor(1,1)
+                    return
+                elseif ev[1] == "gpu_bound" then
+                    DEBUG("GPU BOUND: "..ev[3])
+                    computer.beep(900,0.1)
+                    screen = comp.proxy(ev[3])
+                    gpu.bind(ev[3]) 
+                    gpu.setDepth(gpu.maxDepth())
+                    gpu.setResolution(width, height)
+                    term.getViewport()
+                    gpu.setActiveBuffer(0)
+                    gpu.freeBuffer(drawBuffer)
+                    drawBuffer = gpu.allocateBuffer(width, height)
+                    gpu.fill(1,1,width,height, "#")
+                    gpu.setActiveBuffer(drawBuffer)
+                    gpu.fill(1,1,width,height, "?")
+                    gpu.bitblt(0, 1,1, width, height, drawBuffer, 1, 1)
+                    gpu.setActiveBuffer(0)
+                    DEBUG("NEW BUFFER: "..drawBuffer)
+                end
             end
-        end
+        end)
+        if not stat_t then errorx(err_t) end
     end)
     sgThread = thread.create(function()
-        while true do
-            if not dialing_active and not restart_dialing then
-                event.pull("jjs_dialing_update")
-            end
-            if start_dial then
-                start_dial = false
-                dialing_active = true
-                dial_step = 1
-
-                if #decodeDialed(sg.dialedAddress) > 0 then
-                    feedback("Clearing gate")
-                    if sg.getGateStatus() == "open" then
-                        sg.disengageGate()
-                    end
-                    sg.abortDialing()
-                    os.sleep(3.5)
+        local stat_t, err_t = pcall(function()
+            while true do
+                if not dialing_active and not restart_dialing then
+                    event.pull("jjs_dialing_update")
                 end
-            end
+                if start_dial and sg and #raw_address > 0 and #full_address > 0 then
+                    start_dial = false
+                    dialing_active = true
+                    dial_step = 1
 
-            local curr_symbol = full_address[dial_step]
-            if curr_symbol then
-                feedback("Engaging '"..curr_symbol.."'")
-                if no_glyph_upgrade then
-                    if dial_step < 7 then
-                        engageSymbol(curr_symbol)
+                    if #decodeDialed(sg.dialedAddress) > 0 then
+                        feedback("Clearing gate")
+                        if sg.getGateStatus() == "open" then
+                            sg.disengageGate()
+                        end
+                        sg.abortDialing()
+                        os.sleep(3.5)
+                    end
+                end
+
+                local curr_symbol = full_address[dial_step]
+                if curr_symbol then
+                    feedback("Engaging '"..curr_symbol.."'")
+                    if no_glyph_upgrade then
+                        if dial_step < 7 then
+                            engageSymbol(curr_symbol)
+                        else
+                            engageSymbol(curr_symbol, true)
+                        end
                     else
-                        engageSymbol(curr_symbol, true)
+                        local fb = engageSymbol(curr_symbol)
+                        if fb == "dhd_failure_busy" and dial_step <= #full_address then
+                            no_glyph_upgrade = true
+                            dialing_active = false
+                            dial_step = 0
+                            restart_dialing = true
+                            start_dial = true
+                            softError("No glyph crystal, engaging hybrid mode!")
+                        end
                     end
-                else
-                    local fb = engageSymbol(curr_symbol)
-                    if fb == "dhd_failure_busy" and dial_step <= #full_address then
-                        no_glyph_upgrade = true
-                        dialing_active = false
-                        dial_step = 0
-                        restart_dialing = true
-                        start_dial = true
-                        softError("No glyph crystal, engaging hybrid mode!")
+                    dial_step = dial_step+1
+                elseif dial_step == #raw_address+1 then
+                    if symbol_type == 0 then
+                        engageSymbol("Point of Origin", no_glyph_upgrade)
+                    elseif symbol_type == 1 then
+                        engageSymbol("Subido")
+                    elseif symbol_type == 2 then
+                        engageSymbol("Glyph 17")
                     end
+                    dial_step = dial_step+1
+                elseif dial_step == #raw_address+2 then
+                    feedback("Opening iris (If there is one)")
+                    setIris(false)
+                    dial_step = dial_step+1
+                elseif dial_step == #raw_address+3 then
+                    feedback("Engaging gate")
+                    os.sleep(1.5)
+                    sg.engageGate()
+                    sg.sendIrisCode(iris_code)
+                    dial_step = dial_step+1
+                elseif dial_step == #raw_address+4 then
+                    feedback("Waiting for gate to open fully")
+                    if sg.getGateStatus() == "open" or sg.getGateStatus() == "unstable" then
+                        event.pull(5, "stargate_wormhole_stabilized")
+                    end
+                    dial_step = dial_step+1
+                elseif dial_step == #raw_address+5 then
+                    feedback("Waiting for gate to close")
+                    if sg.getGateStatus() == "open" or sg.getGateStatus() == "unstable" then
+                        event.pull(nil, "stargate_wormhole_closed_fully")
+                        setIris(true, true)
+                    end
+                    dial_step = dial_step+1
+                elseif dial_step == #raw_address+6 then
+                    feedback("Ready")
+                    dialing_active = false
+                    dial_step = 0
+                    restart_dialing = false
                 end
-                dial_step = dial_step+1
-            elseif dial_step == #raw_address+1 then
-                if symbol_type == 0 then
-                    engageSymbol("Point of Origin", no_glyph_upgrade)
-                elseif symbol_type == 1 then
-                    engageSymbol("Subido")
-                elseif symbol_type == 2 then
-                    engageSymbol("Glyph 17")
-                end
-                dial_step = dial_step+1
-            elseif dial_step == #raw_address+2 then
-                feedback("Opening iris (If there is one)")
-                setIris(false)
-                dial_step = dial_step+1
-            elseif dial_step == #raw_address+3 then
-                feedback("Engaging gate")
-                os.sleep(1.5)
-                sg.engageGate()
-                sg.sendIrisCode(iris_code)
-                dial_step = dial_step+1
-            elseif dial_step == #raw_address+4 then
-                feedback("Waiting for gate to open fully")
-                if sg.getGateStatus() == "open" or sg.getGateStatus() == "unstable" then
-                    event.pull(5, "stargate_wormhole_stabilized")
-                end
-                dial_step = dial_step+1
-            elseif dial_step == #raw_address+5 then
-                feedback("Waiting for gate to close")
-                if sg.getGateStatus() == "open" or sg.getGateStatus() == "unstable" then
-                    event.pull(nil, "stargate_wormhole_closed_fully")
-                    setIris(true, true)
-                end
-                dial_step = dial_step+1
-            elseif dial_step == #raw_address+6 then
-                feedback("Ready")
-                dialing_active = false
-                dial_step = 0
-                restart_dialing = false
+                os.sleep()
             end
-            os.sleep()
-        end
+        end)
+        if not stat_t then errorx(err_t) end
     end)
     renderThread = thread.create(function()
-        while true do
-            gpu.setActiveBuffer(drawBuffer)
-            fill(1,1,width,height, color.bg1)
-            fill(1,1,width,4,color.topbar)
+        local stat_t, err_t = pcall(function()
+            while true do
+                gpu.setActiveBuffer(drawBuffer)
+                DEBUG(gpu.getActiveBuffer())
+                fill(1,1,width,height, color.bg1)
+                fill(1,1,width,4,color.topbar)
 
-            if last_error.timeout > 0 then
-                last_error.timeout = last_error.timeout - 1
-                fill(1,height-2,width,height,color.bgerror)
-                local lw = write(2,height-1, string.format("%.0fs ago", math.floor((timeTick()-last_error.time)/20)), color.texterror2, color.bgerror)
-                lw = write(lw+1,height-1, ">", color.texterror, color.bgerror)
-                write(lw+1,height-1, last_error.msg, color.texterror, color.bgerror)
-            else
-                fill(1,height-2,width,height,color.bgfeedback)
-                if last_feedback.msg then
-                    local lw = write(2,height-1, string.format("%.0fs ago", math.floor((timeTick()-last_feedback.time)/20)), color.textfeedback, color.bgfeedback)
-                    lw = write(lw+1,height-1, ">", color.textfeedback2, color.bgfeedback)
-                    write(lw+1,height-1, last_feedback.msg, color.textfeedback2, color.bgfeedback)
+                if last_error.timeout > 0 then
+                    last_error.timeout = last_error.timeout - 1
+                    fill(1,height-2,width,height,color.bgerror)
+                    local lw = write(2,height-1, string.format("%.0fs ago", math.floor((timeTick()-last_error.time)/20)), color.texterror2, color.bgerror)
+                    lw = write(lw+1,height-1, ">", color.texterror, color.bgerror)
+                    write(lw+1,height-1, last_error.msg, color.texterror, color.bgerror)
                 else
-                    write(2,height-1, "No Feedback", color.textfeedback2, color.bgfeedback)
+                    fill(1,height-2,width,height,color.bgfeedback)
+                    if last_feedback.msg then
+                        local lw = write(2,height-1, string.format("%.0fs ago", math.floor((timeTick()-last_feedback.time)/20)), color.textfeedback, color.bgfeedback)
+                        lw = write(lw+1,height-1, ">", color.textfeedback2, color.bgfeedback)
+                        write(lw+1,height-1, last_feedback.msg, color.textfeedback2, color.bgfeedback)
+                    else
+                        write(2,height-1, "No Feedback", color.textfeedback2, color.bgfeedback)
+                    end
                 end
-            end
 
-            write(2,2, "Automatic Note Dialer",color.text1, color.topbar)
-            local lw = write(2,3, "Available Gates: ", color.text2, color.topbar)
-            write(lw,3, tostring(sg_count), color.textbright, color.topbar)
-            local stack = inv.getStackInSlot(sides.top, 1)
-            if stack then
-                local lw = write(2,6, "Inserted Item: ", color.text2, color.bg1, true)
-                write(lw,6, stack.label, color.textbright, color.bg1)
+                write(2,2, "Automatic Note Dialer",color.text1, color.topbar)
+                local lw = write(2,3, "Available Gates: ", color.text2, color.topbar)
+                write(lw,3, tostring(sg_count), color.textbright, color.topbar)
+                local stack = inv.getStackInSlot(sides.top, 1)
+                if stack then
+                    local lw = write(2,6, "Inserted Item: ", color.text2, color.bg1, true)
+                    write(lw,6, stack.label, color.textbright, color.bg1)
 
-                if stack.tag then
-                    local out = {}
-                    def.gunzip({input = stack.tag,
-                            output = function(byte)out[#out+1]=string.char(byte)end,disable_crc=true})
-                    local data = table.concat(out)
-                    local data2 = nbt.decode(data, "plain")
+                    if stack.tag then
+                        local out = {}
+                        def.gunzip({input = stack.tag,
+                                output = function(byte)out[#out+1]=string.char(byte)end,disable_crc=true})
+                        local data = table.concat(out)
+                        local data2 = nbt.decode(data, "plain")
 
-                    if stack.name == "jsg:notebook" then
-                        local selected_num = data2.selected
-                        selected_address = data2.addressList[selected_num+1][2]
-                        symbol_type = selected_address.symbolType
-                    elseif stack.name == "jsg:universe_dialer" and data2.mode == 1 then
-                        local selected_num = data2.selected
-                        selected_address = data2.saved[selected_num+1]
-                        symbol_type = selected_address.symbolType
-                    elseif stack.name == "jsg:page_notebook" then
-                        selected_address = data2.address
-                        symbol_type = selected_address.symbolType
+                        if stack.name == "jsg:notebook" then
+                            local selected_num = data2.selected
+                            selected_address = data2.addressList[selected_num+1][2]
+                            symbol_type = selected_address.symbolType
+                        elseif stack.name == "jsg:universe_dialer" and data2.mode == 1 then
+                            local selected_num = data2.selected
+                            selected_address = data2.saved[selected_num+1]
+                            symbol_type = selected_address.symbolType
+                        elseif stack.name == "jsg:page_notebook" then
+                            selected_address = data2.address
+                            symbol_type = selected_address.symbolType
+                        else
+                            selected_address = nil
+                            symbol_type = nil
+                            write(2,7, "Invalid Item", color.texterror, color.bg1)
+                        end
+
+                        if symbol_type and selected_address then
+                            local lw = write(4,8, "Symbol Type: ", color.text2, color.bg1)
+                            write(lw,8, (symbolTypeNames[symbol_type] or "UNKNOWN"), color.textbright, color.bg1)
+
+                            raw_address = {}
+                            full_address = {}
+                            local i1 = 0
+                            repeat
+                                local new_symbol = selected_address["symbol"..i1]
+                                if new_symbol then raw_address[#raw_address+1] = new_symbol end
+                                i1 = i1+1
+                            until not new_symbol
+
+                            for k,v in ipairs(raw_address) do
+                                full_address[#full_address+1] = symbolIndex[symbol_type][v]
+                            end
+
+                            local lw = write(4,9, "Symbol Count: ", color.text2, color.bg1)
+                            write(lw,9, #raw_address, color.textbright, color.bg1)
+
+                            write(4,10, "Address: ", color.text2, color.bg1)
+                            local longest = 0
+                            for k,symbol in ipairs(full_address) do
+                                if #symbol > longest then
+                                    longest = #symbol
+                                end
+                                write(6,10+k, symbol, color.textbright, color.bg1)
+                            end
+                            for k,symbol in ipairs(raw_address) do
+                                write(6+1+longest,10+k, symbol, color.text2, color.bg1)
+                            end
+
+                            sg = sg_map[symbolTypeToGate[symbol_type] or "UNKNOWN"]
+                            if sg then
+                                write(2,10+#raw_address+2, "Stargate available, ready to dial", color.textvalid, color.bg1)
+                                if touch_mode then
+                                    write(2,10+#raw_address+3, "Click the screen to start", color.textvalid, color.bg1)
+                                else
+                                    write(2,10+#raw_address+3, "Press 'Enter' to start", color.textvalid, color.bg1)
+                                end
+                            else
+                                write(2,10+#raw_address+2, "No stargates of type '"..(symbolTypeNames[symbol_type] or "UNKNOWN").."' available!", color.texterror, color.bg1)
+                            end
+                        end
                     else
                         selected_address = nil
                         symbol_type = nil
                         write(2,7, "Invalid Item", color.texterror, color.bg1)
                     end
-
-                    if symbol_type and selected_address then
-                        local lw = write(4,8, "Symbol Type: ", color.text2, color.bg1)
-                        write(lw,8, (symbolTypeNames[symbol_type] or "UNKNOWN"), color.textbright, color.bg1)
-
-                        raw_address = {}
-                        full_address = {}
-                        local i1 = 0
-                        repeat
-                            local new_symbol = selected_address["symbol"..i1]
-                            if new_symbol then raw_address[#raw_address+1] = new_symbol end
-                            i1 = i1+1
-                        until not new_symbol
-
-                        for k,v in ipairs(raw_address) do
-                            full_address[#full_address+1] = symbolIndex[symbol_type][v]
-                        end
-
-                        local lw = write(4,9, "Symbol Count: ", color.text2, color.bg1)
-                        write(lw,9, #raw_address, color.textbright, color.bg1)
-
-                        write(4,10, "Address: ", color.text2, color.bg1)
-                        local longest = 0
-                        for k,symbol in ipairs(full_address) do
-                            if #symbol > longest then
-                                longest = #symbol
-                            end
-                            write(6,10+k, symbol, color.textbright, color.bg1)
-                        end
-                        for k,symbol in ipairs(raw_address) do
-                            write(6+1+longest,10+k, symbol, color.text2, color.bg1)
-                        end
-
-                        sg = sg_map[symbolTypeToGate[symbol_type] or "UNKNOWN"]
-                        if sg then
-                            write(2,10+#raw_address+2, "Stargate available, ready to dial", color.textvalid, color.bg1)
-                            if touch_mode then
-                                write(2,10+#raw_address+3, "Click the screen to start", color.textvalid, color.bg1)
-                            else
-                                write(2,10+#raw_address+3, "Press 'Enter' to start", color.textvalid, color.bg1)
-                            end
-                        else
-                            write(2,10+#raw_address+2, "No stargates of type '"..(symbolTypeNames[symbol_type] or "UNKNOWN").."' available!", color.texterror, color.bg1)
-                        end
-                    end
                 else
-                    selected_address = nil
-                    symbol_type = nil
-                    write(2,7, "Invalid Item", color.texterror, color.bg1)
+                    local lw = write(2,6, "Inserted Item: ", color.text2, color.bg1, true)
+                    write(lw,6, "NONE", color.textbright, color.bg1)
                 end
-            else
-                local lw = write(2,6, "Inserted Item: ", color.text2, color.bg1, true)
-                write(lw,6, "NONE", color.textbright, color.bg1)
+                gpu.bitblt(0, 1,1, width, height, drawBuffer, 1, 1)
+                gpu.setActiveBuffer(0)
+                os.sleep(0.5)
             end
-            gpu.bitblt(0, 1,1, width, height, drawBuffer, 1, 1)
-            os.sleep(0.5)
-        end
+        end)
+        if not stat_t then errorx(err_t) end
     end)
     thread.waitForAll({eventThread, renderThread, sgThread})
 end)
@@ -662,9 +715,9 @@ pcall(function()
     sgThread:kill()
 end)
 
-gpu.setActiveBuffer(0)
-gpu.freeBuffer(drawBuffer)
-term.clear()
-term.setCursor(1,1)
+--gpu.setActiveBuffer(0)
+--gpu.freeBuffer(drawBuffer)
+--term.clear()
+--term.setCursor(1,1)
 
 if not stat then error(err) end
