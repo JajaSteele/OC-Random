@@ -1,4 +1,4 @@
-local script_version = "1.4"
+local script_version = "1.5"
 -- AUTO UPDATE STUFF
 local curr_script = debug.getinfo(2, "S").source:gsub("^=", "")
 local script_io = io.open(curr_script, "r")
@@ -406,6 +406,8 @@ if #screen.getKeyboards() == 0 then
     touch_mode = true
 end
 
+local ver_text = "V"..script_version
+
 local no_glyph_upgrade = false
 
 local start_dial = false
@@ -614,8 +616,8 @@ local stat, err = pcall(function()
                     end
                 end
 
-                local lw = write(2,2, "Automatic Note Dialer",color.text1, color.topbar)
-                write(lw,2, " V"..script_version, color.textbright, color.topbar)
+                write(2,2, "Automatic Note Dialer",color.text1, color.topbar)
+                write(width-(#ver_text)-1,2, " V"..script_version, color.textbright, color.topbar)
                 local lw = write(2,3, "Available Gates: ", color.text2, color.topbar)
                 write(lw,3, tostring(sg_count), color.textbright, color.topbar)
                 local stack = inv.getStackInSlot(sides.top, 1)
