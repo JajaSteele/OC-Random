@@ -1,4 +1,4 @@
-local script_version = "1.5"
+local script_version = "1.6"
 -- AUTO UPDATE STUFF
 local curr_script = debug.getinfo(2, "S").source:gsub("^=", "")
 local script_io = io.open(curr_script, "r")
@@ -78,9 +78,13 @@ local term = require("term")
 local screen = comp.screen
 local gpu = comp.gpu
 
-local function DEBUG(txt)
+local function DEBUG(...)
     if comp.isAvailable("chat_box") then
         comp.chat_box.setName("DEBUG")
+        local txt = ""
+        for k,v in ipairs({...}) do
+            txt = txt .. tostring(v) .. "    "
+        end
         comp.chat_box.say(tostring(txt))
     end
 end
@@ -487,20 +491,15 @@ local stat, err = pcall(function()
                 elseif ev[1] == "gpu_bound" then
                     DEBUG("GPU BOUND: "..ev[3])
                     computer.beep(900,0.1)
+                    renderThread:suspend()
+                    
                     screen = comp.proxy(ev[3])
-                    gpu.bind(ev[3]) 
-                    gpu.setDepth(gpu.maxDepth())
+                    
                     gpu.setResolution(width, height)
-                    term.getViewport()
-                    gpu.setActiveBuffer(0)
-                    gpu.freeBuffer(drawBuffer)
-                    drawBuffer = gpu.allocateBuffer(width, height)
-                    gpu.fill(1,1,width,height, "#")
-                    gpu.setActiveBuffer(drawBuffer)
-                    gpu.fill(1,1,width,height, "?")
-                    gpu.bitblt(0, 1,1, width, height, drawBuffer, 1, 1)
-                    gpu.setActiveBuffer(0)
-                    DEBUG("NEW BUFFER: "..drawBuffer)
+                    event.pull(0.25, "screen_resized")
+                    DEBUG(term.getViewport())
+
+                    renderThread:resume()
                 end
             end
         end)
@@ -595,7 +594,7 @@ local stat, err = pcall(function()
         local stat_t, err_t = pcall(function()
             while true do
                 gpu.setActiveBuffer(drawBuffer)
-                DEBUG(gpu.getActiveBuffer())
+                DEBUG(term.getViewport())
                 fill(1,1,width,height, color.bg1)
                 fill(1,1,width,4,color.topbar)
 
