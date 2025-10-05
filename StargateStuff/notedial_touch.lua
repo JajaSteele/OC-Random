@@ -1,4 +1,4 @@
-local script_version = "1.6"
+local script_version = "1.7"
 -- AUTO UPDATE STUFF
 local curr_script = debug.getinfo(2, "S").source:gsub("^=", "")
 local script_io = io.open(curr_script, "r")
@@ -363,6 +363,8 @@ local function timeTick()
     return (os.time()*1000/60/60) - 6000
 end
 
+local address_display = ""
+
 local symbol_type
 local selected_address
 
@@ -622,7 +624,7 @@ local stat, err = pcall(function()
                 local stack = inv.getStackInSlot(sides.top, 1)
                 if stack then
                     local lw = write(2,6, "Inserted Item: ", color.text2, color.bg1, true)
-                    write(lw,6, stack.label, color.textbright, color.bg1)
+                    write(lw,6, stack.name:match(".+:(.+)"), color.textbright, color.bg1)
 
                     if stack.tag then
                         local out = {}
@@ -634,14 +636,25 @@ local stat, err = pcall(function()
                         if stack.name == "jsg:notebook" then
                             local selected_num = data2.selected
                             selected_address = data2.addressList[selected_num+1][2]
+                            if data2.addressList[selected_num+1].display then
+                                address_display = data2.addressList[selected_num+1].display.Name
+                            else
+                                address_display = nil
+                            end
                             symbol_type = selected_address.symbolType
                         elseif stack.name == "jsg:universe_dialer" and data2.mode == 1 then
                             local selected_num = data2.selected
                             selected_address = data2.saved[selected_num+1]
+                            address_display = selected_address.name
                             symbol_type = selected_address.symbolType
                         elseif stack.name == "jsg:page_notebook" then
                             selected_address = data2.address
                             symbol_type = selected_address.symbolType
+                            if data2.display then
+                                address_display = data2.display.Name
+                            else
+                                address_display = nil
+                            end
                         else
                             selected_address = nil
                             symbol_type = nil
@@ -668,7 +681,12 @@ local stat, err = pcall(function()
                             local lw = write(4,9, "Symbol Count: ", color.text2, color.bg1)
                             write(lw,9, #raw_address, color.textbright, color.bg1)
 
-                            write(4,10, "Address: ", color.text2, color.bg1)
+                            local lw = write(4,10, "Address: ", color.text2, color.bg1)
+                            if address_display and #address_display > 0 then
+                                write(lw,10, "("..address_display..")", color.textbright, color.bg1)
+                            else
+                                write(lw,10, "(No Name)", color.texterror2, color.bg1)
+                            end
                             local longest = 0
                             for k,symbol in ipairs(full_address) do
                                 if #symbol > longest then
