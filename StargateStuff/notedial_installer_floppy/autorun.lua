@@ -16,5 +16,7 @@ for k,v in pairs(filesystems) do
     end
 end
 
+disk.setLabel("NdT Installer")
+
 computer.setBootAddress(disk.address)
 computer.shutdown(true)
