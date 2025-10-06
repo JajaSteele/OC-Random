@@ -72,7 +72,9 @@ local stages = {
 }
 
 local install_disk = component.proxy(computer.getBootAddress())
-install_disk.setLabel("NdT Installer")
+if not install_disk.isReadOnly() then
+    install_disk.setLabel("NdT Installer")
+end
 
 local selected_disk
 local stage = 1

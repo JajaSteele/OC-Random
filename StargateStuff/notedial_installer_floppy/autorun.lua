@@ -16,7 +16,9 @@ for k,v in pairs(filesystems) do
     end
 end
 
-disk.setLabel("NdT Installer")
+if not disk.isReadOnly() then
+    disk.setLabel("NdT Installer")
+end
 
 computer.setBootAddress(disk.address)
 computer.shutdown(true)
