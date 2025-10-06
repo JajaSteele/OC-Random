@@ -69,6 +69,7 @@ local stages = {
     "Disk Confirmation",
     "Copying OS Files",
     "Installing 'notedial'",
+    "Ready to reboot"
 }
 
 local install_disk = component.proxy(computer.getBootAddress())
@@ -237,6 +238,13 @@ while true do
 
         setStage(5)
     elseif stage == 5 then
+        setState("Please pull out the install floppy")
+        repeat
+            local ev = {computer.pullSignal()}
+        until ev[1] == "component_removed" and ev[3] == "filesystem" and ev[2] == install_disk.address
+
+        computer.beep(1200, 0.125)
+        computer.beep(1200, 0.125)
         computer.setBootAddress(selected_disk.address)
         computer.shutdown(true)
     end
