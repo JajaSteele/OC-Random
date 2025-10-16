@@ -330,7 +330,7 @@ threads.render = thread.create(function ()
 
             fill(16, height-1, width, height-1, color.black, color.dotted_2, "┄")
 
-            local state_text = "State: "..show_state
+            local state_text = "[View: "..show_state.."]"
             write(2,5, state_text, (show_state == "Off" and color.state_off) or color.state_on)
             addButton(2,5,2+#state_text,5,function()
                 if show_state == "Off" then
@@ -362,7 +362,28 @@ threads.render = thread.create(function ()
                 printer.commit()
             end)
 
-            local add_text = "Add Cube"
+            local masscopy_text = "[Copy to "..((show_state == "Off" and "On") or "Off").."]"
+            write(2,height-2, masscopy_text, color.state_on, color.black)
+            addButton(2,height-2,2+#masscopy_text,height-2,function()
+                local from
+                local to
+                if show_state == "Off" then
+                    from = object_data.shapes.off
+                    to = object_data.shapes.on
+                elseif show_state == "On" then
+                    from = object_data.shapes.on
+                    to = object_data.shapes.off
+                end
+
+                for k, shape in pairs(from) do
+                    to[#to+1] = {
+                        texture=shape.texture,
+                        coords={table.unpack(shape.coords)}
+                    }
+                end
+            end)
+
+            local add_text = "[Add Cube]"
             write(2,height-1, add_text, color.state_on, color.black)
             addButton(2,height-1,2+#add_text,height-1,function()
                 if show_state == "Off" then
@@ -446,7 +467,7 @@ threads.render = thread.create(function ()
                     lw2 = write(lw2, 5, "]", color.cubes_text1, color.black)
 
                     local dupe_text = "[Duplicate]"
-                    write(16,height, dupe_text, color.cube_selected, color.titlebar_bg)
+                    write(16,height, dupe_text, color.cube_selected, color.black)
                     addButton(16,height,16+#dupe_text,height,function()
                         shapes[#shapes+1] = {
                             texture=shape.texture,
@@ -489,7 +510,7 @@ threads.render = thread.create(function ()
                     end
                 end
 
-                if ly >= (height-2)-6 then
+                if ly >= (height-3)-6 then
                     break
                 end
             end
