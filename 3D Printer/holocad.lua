@@ -586,7 +586,6 @@ threads.render = thread.create(function ()
             write(width-49,2, load_text, (save_exists and color.state_on) or color.state_off, color.titlebar_bg)
             addButton(width-49,2,width-44,2,function()
                 if #file_name > 0 and save_exists then
-                    asyncBeep(500,0.1)
                     local file_io = save_fs.open("/.hc_models/"..file_name..".hc", "r")
                     if file_io then
                         local file_data = ""
@@ -599,8 +598,14 @@ threads.render = thread.create(function ()
                         local new_object = ser.unserialize(file_data)
 
                         object_data = new_object or object_data
+                        asyncBeep(500,0.05)
+                        asyncBeep(500,0.05)
                         event.push("hc_render")
+                    else
+                        asyncBeep(75, 0.2)
                     end
+                else
+                    asyncBeep(75, 0.2)
                 end
             end)
 
@@ -622,6 +627,8 @@ threads.render = thread.create(function ()
                         save_fs.close(file_io)
                         save_exists = save_fs.exists("/.hc_models/"..file_name..".hc")
                         event.push("hc_render")
+                    else
+                        asyncBeep(75, 0.2)
                     end
                 end
             end)
