@@ -28,6 +28,8 @@ local screen = component.screen
 local gpu = component.gpu
 
 local glass
+local glass_offset_default = {0,1,0}
+local glass_offset = glass_offset_default
 
 local function asyncBeep(freq, duration)
     thread.create(function()
@@ -35,10 +37,26 @@ local function asyncBeep(freq, duration)
     end)
 end
 
+local side_to_transform = {
+    ["up"] = {0,1,0},
+    ["down"] = {0,-1,0},
+    ["north"] = {0,0,-1},
+    ["east"] = {1,0,0},
+    ["south"] = {0,0,1},
+    ["west"] = {-1,0,0},
+}
+
 local function glassCube(x1,y1,z1, x2, y2, z2, rgba)
     local gshape = glass.addCustom3D()
     gshape.setGLMODE("TRIANGLE_STRIP")
     gshape.setShading("SMOOTH")
+
+    local x1 = x1+glass_offset[1]
+    local y1 = y1+glass_offset[2]
+    local z1 = z1+glass_offset[3]
+    local x2 = x2+glass_offset[1]
+    local y2 = y2+glass_offset[2]
+    local z2 = z2+glass_offset[3]
 
     gshape.addColor(table.unpack(rgba))
 
@@ -193,6 +211,8 @@ end
 
 local drawBuffer = gpu.allocateBuffer(width, height)
 
+local glass_buttons = {}
+
 local threads = {}
 local buttons = {}
 local text_boxes = {}
@@ -206,6 +226,33 @@ local function addButton(x,y, x2, y2, func)
             y2=y2
         },
         func=func
+    }
+end
+
+local function addGButton(x,y,x2,y2, func, text)
+    local gbox = glass.addBox2D()
+    gbox.setSize(x2-x,y2-y)
+    gbox.addTranslation(x,y, 200)
+    gbox.addColor(0.05,0.5,0.75, 1)
+    gbox.addColor(0,0.125,0.5, 1)
+
+    local gtext = glass.addText2D()
+    gtext.setText(text)
+    gtext.addTranslation(x+2,y+(((y2-y)+1)/2), 210)
+    gtext.setVerticalAlign("middle")
+
+    glass_buttons[#glass_buttons+1] = {
+        coords={
+            x1=x,
+            y1=y,
+            x2=x2,
+            y2=y2
+        },
+        func=func,
+        widgets = {
+            box=gbox,
+            text=gtext
+        }
     }
 end
 
@@ -268,7 +315,7 @@ local eventThread = thread.create(function ()
                     if x >= button.coords.x1 and y >= button.coords.y1 then
                         if x <= button.coords.x2 and y <= button.coords.y2 then
                             local func = button.func
-                            if func then func(b) end
+                            if func then func(ev) end
                             break
                         end
                     end
@@ -370,6 +417,21 @@ local eventThread = thread.create(function ()
                         event.push("hc_render")
                     end
                 end
+            elseif ev[1] == "interact_overlay" then
+                local _, _, user, x, y, b = table.unpack(ev)
+
+                for k, button in pairs(glass_buttons) do
+                    DEBUG("button coords",button.coords.x1, button.coords.y1, button.coords.x2, button.coords.y2)
+                    if x >= button.coords.x1 and y >= button.coords.y1 then
+                        if x <= button.coords.x2 and y <= button.coords.y2 then
+                            local highlight1 = button.widgets.text.addColor(0.5,1,1, 1)
+                            local func = button.func
+                            if func then func(ev) end
+                            button.widgets.text.removeModifier(highlight1)
+                            break
+                        end
+                    end
+                end
             end
         end
     end)
@@ -467,6 +529,16 @@ threads.render = thread.create(function ()
                 end
                 event.push("hc_render")
             end)
+
+            if glass then
+                local link_text = "[Link AR Glasses]"
+                write(width-40,3, link_text, color.cubes_text1, color.titlebar_bg)
+                addButton(width-40,3,(width-40)+#link_text-1,3,function(data)
+                    asyncBeep(500,0.05)
+                    asyncBeep(800,0.075)
+                    glass.startLinking(data[6])
+                end)
+            end
 
             local print_text = "[Print]"
             write(width-7,2, print_text, color.state_on, color.titlebar_bg)
@@ -747,11 +819,50 @@ threads.render = thread.create(function ()
             local lx, ly = 2, 7
             if glass then
                 glass.removeAll()
+                addGButton(10,10, 160, 20, function(data)
+                    local user = data[3]
+                    local pos = glass.getUserPosition(user)
+                    glass_offset = {math.floor(pos.x), math.floor(pos.y), math.floor(pos.z)}
+                    event.push("hc_render")
+                end, "Set Offset (Curr. Pos)")
+
+                addGButton(162,10, 322, 20, function(data)
+                    local txt = data[3]..": R-Click or Punch the side of a block to set hologram position"
+                    local waitText = glass.addText2D()
+                    waitText.setText(txt)
+                    waitText.setHorizontalAlign("center")
+
+                    waitText.addAutoTranslation(50, 50)
+                    waitText.addTranslation(0,-20, 205)
+                    waitText.addColor(1, 0.5, 0.5, 1)
+
+                    local waitText2 = glass.addText2D()
+                    waitText2.setText(txt)
+                    waitText2.setHorizontalAlign("center")
+
+                    waitText2.addAutoTranslation(50, 50)
+                    waitText2.addTranslation(0,-20, 200)
+                    waitText2.addTranslation(1,1, 0)
+                    waitText2.addColor(0.25, 0.0875, 0.0875, 0.75)
+
+                    local ev = {event.pull(5, "interact_world_block_.+", nil, data[3])}
+                    local transf = side_to_transform[ev[14]]
+                    if transf then
+                        glass_offset = {ev[11]+transf[1], ev[12]+transf[2], ev[13]+transf[3]}
+                    end
+                    event.push("hc_render")
+                end, "Set Offset (Interact)")
+
+                addGButton(10,22, 100, 32, function(data)
+                    glass_offset = glass_offset_default
+                    event.push("hc_render")
+                end, "Reset Offset")
             end
             for k, shape in pairs(shapes) do
                 local x,y
                 local text = "Cube "..k
-                local func = function(b)
+                local func = function(ev)
+                    local b = ev[5]
                     if b == 0 then
                         selected_cube = k
                         event.push("hc_render")
@@ -830,7 +941,7 @@ threads.render = thread.create(function ()
                 end
                 
                 if glass then
-                    glassCube(z1/16, (y1/16)+1, x1/16, z2/16, (y2/16)+1, x2/16, (selected_cube == k and {1, 1, 0.5, 0.8}) or {1, 0.5, 0.5, 0.8})
+                    glassCube(z1/16, (y1/16), x1/16, z2/16, (y2/16), x2/16, (selected_cube == k and {1, 1, 0.5, 0.8}) or {1, 0.5, 0.5, 0.8})
                 end
 
                 if ly >= (height-3)-6 then
