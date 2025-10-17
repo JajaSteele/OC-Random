@@ -313,6 +313,16 @@ local eventThread = thread.create(function ()
                                         if textbox.cancel_func then textbox.cancel_func() end
                                         break
                                     end
+                                elseif ev[1] == "clipboard" then
+                                    for char in ev[3]:gmatch(textbox.pattern_filter) do
+                                        if #current_input < textbox.max_length then
+                                            DEBUG("char", char)
+                                            current_input = current_input..char
+                                        else
+                                            break
+                                        end
+                                    end
+                                    displayInput()
                                 elseif ev[1] == "hc_drawinput" then
                                     displayInput()
                                 end
