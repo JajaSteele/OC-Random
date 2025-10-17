@@ -528,6 +528,7 @@ threads.render = thread.create(function ()
                     show_state = "Off"
                 end
                 event.push("hc_render")
+                event.push("hc_drawglass")
             end)
 
             if glass then
@@ -658,6 +659,7 @@ threads.render = thread.create(function ()
                         asyncBeep(500,0.05)
                         asyncBeep(500,0.05)
                         event.push("hc_render")
+                        event.push("hc_drawglass")
                     else
                         asyncBeep(75,0.2)
                     end
@@ -685,6 +687,7 @@ threads.render = thread.create(function ()
                         asyncBeep(500,0.05)
                         asyncBeep(500,0.05)
                         event.push("hc_render")
+                        event.push("hc_drawglass")
                     else
                         asyncBeep(75, 0.2)
                     end
@@ -789,6 +792,7 @@ threads.render = thread.create(function ()
 
                     selected_cube = #object_data.shapes.off
                     event.push("hc_render")
+                    event.push("hc_drawglass")
                 else
                     object_data.shapes.on[#object_data.shapes.on+1] = {
                         texture="",
@@ -804,6 +808,7 @@ threads.render = thread.create(function ()
 
                     selected_cube = #object_data.shapes.on
                     event.push("hc_render")
+                    event.push("hc_drawglass")
                 end
             end)
 
@@ -817,47 +822,6 @@ threads.render = thread.create(function ()
             holo.setTranslation(1/3, 0.75, 0)
             holo.clear()
             local lx, ly = 2, 7
-            if glass then
-                glass.removeAll()
-                addGButton(10,10, 160, 20, function(data)
-                    local user = data[3]
-                    local pos = glass.getUserPosition(user)
-                    glass_offset = {math.floor(pos.x), math.floor(pos.y), math.floor(pos.z)}
-                    event.push("hc_render")
-                end, "Set Offset (Curr. Pos)")
-
-                addGButton(162,10, 322, 20, function(data)
-                    local txt = data[3]..": R-Click or Punch the side of a block to set hologram position"
-                    local waitText = glass.addText2D()
-                    waitText.setText(txt)
-                    waitText.setHorizontalAlign("center")
-
-                    waitText.addAutoTranslation(50, 50)
-                    waitText.addTranslation(0,-20, 205)
-                    waitText.addColor(1, 0.5, 0.5, 1)
-
-                    local waitText2 = glass.addText2D()
-                    waitText2.setText(txt)
-                    waitText2.setHorizontalAlign("center")
-
-                    waitText2.addAutoTranslation(50, 50)
-                    waitText2.addTranslation(0,-20, 200)
-                    waitText2.addTranslation(1,1, 0)
-                    waitText2.addColor(0.25, 0.0875, 0.0875, 0.75)
-
-                    local ev = {event.pull(5, "interact_world_block_.+", nil, data[3])}
-                    local transf = side_to_transform[ev[14]]
-                    if transf then
-                        glass_offset = {ev[11]+transf[1], ev[12]+transf[2], ev[13]+transf[3]}
-                    end
-                    event.push("hc_render")
-                end, "Set Offset (Interact)")
-
-                addGButton(10,22, 100, 32, function(data)
-                    glass_offset = glass_offset_default
-                    event.push("hc_render")
-                end, "Reset Offset")
-            end
             for k, shape in pairs(shapes) do
                 local x,y
                 local text = "Cube "..k
@@ -866,12 +830,14 @@ threads.render = thread.create(function ()
                     if b == 0 then
                         selected_cube = k
                         event.push("hc_render")
+                        event.push("hc_drawglass")
                     elseif b == 1 then
                         asyncBeep(75, 0.1)
                         table.remove(shapes, k)
 
                         selected_cube = clamp(selected_cube, 1, #shapes)
                         event.push("hc_render")
+                        event.push("hc_drawglass")
                     end
                 end
                 local x1, y1, z1, x2, y2, z2 = table.unpack(shape.coords)
@@ -905,6 +871,7 @@ threads.render = thread.create(function ()
                         }
                         selected_cube = #object_data.shapes.off
                         event.push("hc_render")
+                        event.push("hc_drawglass")
                     end)
 
                     local cancel_func = function() event.push("hc_render") end
@@ -912,19 +879,19 @@ threads.render = thread.create(function ()
                     write(17,6, "Coords:", color.cubes_text1, color.black)
                     write(19,7, "Min:", color.cubes_text1, color.black)
                     write(21,8, "X "..x1, color.cube_selected, color.black)
-                    addTextBox(23,8,23+1,8, tostring(x1), 2, "%d", nil, function(input) shape.coords[1] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") end, cancel_func, color.cube_selected, color.black)
+                    addTextBox(23,8,23+1,8, tostring(x1), 2, "%d", nil, function(input) shape.coords[1] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.cube_selected, color.black)
                     write(21,9, "Y "..y1, color.cube_selected, color.black)
-                    addTextBox(23,9,23+1,9, tostring(y1), 2, "%d", nil, function(input) shape.coords[2] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") end, cancel_func, color.cube_selected, color.black)
+                    addTextBox(23,9,23+1,9, tostring(y1), 2, "%d", nil, function(input) shape.coords[2] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.cube_selected, color.black)
                     write(21,10, "Z "..z1, color.cube_selected, color.black)
-                    addTextBox(23,10,23+1,10, tostring(z1), 2, "%d", nil, function(input) shape.coords[3] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") end, cancel_func, color.cube_selected, color.black)
+                    addTextBox(23,10,23+1,10, tostring(z1), 2, "%d", nil, function(input) shape.coords[3] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.cube_selected, color.black)
 
                     write(19,11, "Max:", color.cubes_text1, color.black)
                     write(21,12, "X "..x2, color.cube_selected, color.black)
-                    addTextBox(23,12,23+1,12, tostring(x2), 2, "%d", nil, function(input) shape.coords[4] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") end, cancel_func, color.cube_selected, color.black)
+                    addTextBox(23,12,23+1,12, tostring(x2), 2, "%d", nil, function(input) shape.coords[4] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.cube_selected, color.black)
                     write(21,13, "Y "..y2, color.cube_selected, color.black)
-                    addTextBox(23,13,23+1,13, tostring(y2), 2, "%d", nil, function(input) shape.coords[5] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") end, cancel_func, color.cube_selected, color.black)
+                    addTextBox(23,13,23+1,13, tostring(y2), 2, "%d", nil, function(input) shape.coords[5] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.cube_selected, color.black)
                     write(21,14, "Z "..z2, color.cube_selected, color.black)
-                    addTextBox(23,14,23+1,14, tostring(z2), 2, "%d", nil, function(input) shape.coords[6] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") end, cancel_func, color.cube_selected, color.black)
+                    addTextBox(23,14,23+1,14, tostring(z2), 2, "%d", nil, function(input) shape.coords[6] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.cube_selected, color.black)
                 else
                     x,y = write(lx,ly, text, color.cubes_text1, color.black)
                     addButton(lx,ly, lx+#text-1,ly,func)
@@ -938,10 +905,6 @@ threads.render = thread.create(function ()
                             --print(x,y,z)
                         end
                     end
-                end
-                
-                if glass then
-                    glassCube(z1/16, (y1/16), x1/16, z2/16, (y2/16), x2/16, (selected_cube == k and {1, 1, 0.5, 0.8}) or {1, 0.5, 0.5, 0.8})
                 end
 
                 if ly >= (height-3)-6 then
@@ -958,6 +921,72 @@ threads.render = thread.create(function ()
     end
 end)
 
+if glass then
+        threads.glass = thread.create(function()
+            local stat, err = pcall(function()
+                while true do
+                    event.pull("hc_drawglass")
+                    glass.removeAll()
+                    addGButton(10,10, 160, 20, function(data)
+                        local user = data[3]
+                        local pos = glass.getUserPosition(user)
+                        glass_offset = {math.floor(pos.x), math.floor(pos.y), math.floor(pos.z)}
+                        event.push("hc_render")
+                        event.push("hc_drawglass")
+                    end, "Set Offset (Curr. Pos)")
+
+                    addGButton(162,10, 322, 20, function(data)
+                        local txt = data[3]..": R-Click or Punch the side of a block to set hologram position"
+                        local waitText = glass.addText2D()
+                        waitText.setText(txt)
+                        waitText.setHorizontalAlign("center")
+
+                        waitText.addAutoTranslation(50, 50)
+                        waitText.addTranslation(0,-20, 205)
+                        waitText.addColor(1, 0.5, 0.5, 1)
+
+                        local waitText2 = glass.addText2D()
+                        waitText2.setText(txt)
+                        waitText2.setHorizontalAlign("center")
+
+                        waitText2.addAutoTranslation(50, 50)
+                        waitText2.addTranslation(0,-20, 200)
+                        waitText2.addTranslation(1,1, 0)
+                        waitText2.addColor(0.25, 0.0875, 0.0875, 0.75)
+
+                        local ev = {event.pull(5, "interact_world_block_.+", nil, data[3])}
+                        local transf = side_to_transform[ev[14]]
+                        if transf then
+                            glass_offset = {ev[11]+transf[1], ev[12]+transf[2], ev[13]+transf[3]}
+                        end
+                        event.push("hc_render")
+                        event.push("hc_drawglass")
+                    end, "Set Offset (Interact)")
+
+                    addGButton(10,22, 100, 32, function(data)
+                        glass_offset = glass_offset_default
+                        event.push("hc_render")
+                        event.push("hc_drawglass")
+                    end, "Reset Offset")
+
+                    local shapes
+                    if show_state == "Off" then
+                        shapes = object_data.shapes.off
+                    elseif show_state == "On" then
+                        shapes = object_data.shapes.on
+                    end
+                    for k, shape in pairs(shapes) do
+                        local x1, y1, z1, x2, y2, z2 = table.unpack(shape.coords)
+                        glassCube(z1/16, (y1/16), x1/16, z2/16, (y2/16), x2/16, (selected_cube == k and {1, 1, 0.5, 0.8}) or {1, 0.5, 0.5, 0.8})
+                    end
+                end
+            end)
+            if not stat then
+                quit(err or "")
+            end
+        end)
+    end
+
 
 local threads_only = {}
 for k,v in pairs(threads) do
@@ -965,6 +994,7 @@ for k,v in pairs(threads) do
 end
 threads_only[#threads_only+1] = eventThread
 event.push("hc_render")
+event.push("hc_drawglass")
 
 local stat, err = pcall(function ()
     thread.waitForAll(threads_only)
