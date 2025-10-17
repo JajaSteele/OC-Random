@@ -485,6 +485,8 @@ threads.render = thread.create(function ()
                 printer.setRedstoneEmitter(object_data.redstone_level)
                 printer.setCollidable((not object_data.noclip.off), (not object_data.noclip.on))
                 printer.setButtonMode((object_data.button_mode))
+
+                printer.setLabel(file_name)
             end)
 
             local import_text = "[Import NBT]"
