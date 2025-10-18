@@ -565,6 +565,7 @@ threads.render = thread.create(function ()
                 asyncBeep(500,0.05)
                 asyncBeep(800,0.075)
                 printer.commit(print_count or 1)
+                DEBUG("printing "..print_count)
             end)
 
             local export_text = "[Export to Printer]"
