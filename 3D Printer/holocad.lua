@@ -157,6 +157,8 @@ local color = {
 
 local width, height = gpu.getResolution()
 
+local print_count = 1
+
 local selected_cube = 1
 local show_state = "Off"
 local file_name = ""
@@ -483,6 +485,22 @@ threads.render = thread.create(function ()
                 end, 
                 color.cube_selected, color.black)
 
+            local lw = write(width-6, 3, "x", color.dotted_2, color.titlebar_bg)
+            local lw2 = write(lw, 3, tostring(print_count), color.dotted_1, color.titlebar_bg)
+            addTextBox(lw,3,lw2-1,3, tostring(print_count),3,"[%d]", 
+                function()
+                    fill(lw, 3, lw2, 3, color.cube_selected)
+                    write(lw, 3, tostring(print_count), color.cube_selected, color.titlebar_bg)
+                end, 
+                function(input) 
+                    print_count = clamp(tonumber(input) or 1, 1, 999)
+                    event.push("hc_render")
+                end, 
+                function()
+                    event.push("hc_render")
+                end, 
+                color.cube_selected, color.titlebar_bg)
+
             local lw = write(17, height-2, "Redstone Level: ", color.cubes_text1, color.black)
             local lw2 = write(lw, height-2, tostring(object_data.redstone_level), color.cube_selected, color.black)
             addTextBox(lw,height-2,lw2-1,height-2, tostring(object_data.redstone_level),2,"[%d]", 
@@ -546,7 +564,7 @@ threads.render = thread.create(function ()
             addButton(width-7,2,width-1,2,function()
                 asyncBeep(500,0.05)
                 asyncBeep(800,0.075)
-                printer.commit()
+                printer.commit(print_count or 1)
             end)
 
             local export_text = "[Export to Printer]"
