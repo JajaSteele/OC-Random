@@ -1,0 +1,1 @@
+{light_level=15,shapes={on={},off={{coords={0,15,0,16,16,16},texture="chisel:blocks/glass/terrain-glassstreak"},{coords={0,0,0,16,12,16},texture="chisel:blocks/glowstone/extra/neon"}}},button_mode=false,redstone_level=0,noclip={on=false,off=false}}
