@@ -87,6 +87,16 @@ local function secondsToDuration(seconds)
     return output
 end
 
+local function bytesToString(bytes)
+    if bytes > 1000000 then
+        return string.format("%.2f MB", bytes/1000000)
+    elseif bytes > 1000 then
+        return string.format("%.2f KB", bytes/1000)
+    else
+        return string.format("%.2f B", bytes)
+    end
+end
+
 local color = {
     titlebar_bg=0x222222,
     titlebar_text1 = 0xCCCCCC,
@@ -249,11 +259,11 @@ threads.render = thread.create(function()
             if tape_info.content == 0 then
                 write(lw, 7, "Scan Required", color.state_off)
             else
-                write(lw, 7, tape_info.content, color.white)
+                write(lw, 7, bytesToString(tape_info.content), color.white)
             end
 
             local lw = write(3,8, "Max Size: ", color.text1)
-            write(lw, 8, tape_info.size, color.white)
+            write(lw, 8, bytesToString(tape_info.size), color.white)
 
             local lw = write(2, height-6, "Volume: ", color.text1, color.black)
             write(lw, height-6, string.format("%.0f%%", volume*100), color.white)
