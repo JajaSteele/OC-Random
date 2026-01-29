@@ -181,6 +181,7 @@ local volume = 1
 local speed = 1
 local loop = false
 local autoscan = false
+local autoplay = false
 
 tape.setVolume(volume)
 tape.setSpeed(speed)
@@ -262,6 +263,17 @@ threads.render = thread.create(function()
                 autoscan = not autoscan
                 event.push("tp_render")
             end)
+
+            if autoscan then
+                local lw2 = write(lw3+5, 5, "Autoplay: ", color.dotted_2)
+                local lw3 = write(lw2, 5, ((autoplay and "Enabled") or "Disabled"), color.dotted_1)
+                addButton(lw2, 5, lw3, 5, function()
+                    autoplay = not autoplay
+                    event.push("tp_render")
+                end)
+            else
+                autoplay = false
+            end
 
             
             local lw = write(3,6, "Label: ", color.text1)
@@ -450,6 +462,10 @@ threads.tapewatcher = thread.create(
                 if autoscan and tape.isReady() and not tape_info.has_info then
                     scanContent()
                     tape.seek(-tape.getSize())
+                    if autoplay then
+                        tape.play()
+                        loop = true
+                    end
                     redraw = true
                 end
                 if redraw then
