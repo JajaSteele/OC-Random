@@ -180,6 +180,7 @@ end
 local volume = 1
 local speed = 1
 local loop = false
+local autoscan = false
 
 tape.setVolume(volume)
 tape.setSpeed(speed)
@@ -191,6 +192,48 @@ local tape_info = {
     content=0,
     detected_quality=0
 }
+
+local function scanContent()
+    local old_pos = tape.getPosition()
+    local was_playing = tape.getState()
+    
+    if tape.isReady() then
+        tape.stop()
+        tape.seek(tape.getSize())
+        local searcher_amount = tape.getSize()/16
+        while true do
+            tape.seek(-(searcher_amount+1))
+            --print(tape.getPosition(), searcher_amount)
+            local tape_pos = tape.getPosition()
+            local lw = write(3,7, "Content Size: ", color.text1, color.black, true)
+            write(lw, 7, tape_pos.." ("..searcher_amount..")", color.state_warn)
+
+            fill(2, height-2, width-1, height-2, color.black, color.dotted_2, "┉")
+            write(clamp(1+((width-2)*(tape_pos/tape_info.size)), 2, width-1), height-2, "|", color.titlebar_text1)
+            local byte = string.byte(tape.read(1))
+            if byte ~= 0 and byte ~= 170 then
+                if searcher_amount == 1 then
+                    tape_info.content = tape.getPosition()
+                    break
+                else
+                    tape.seek(searcher_amount)
+                    searcher_amount = math.ceil(searcher_amount/2)
+                end
+            end
+        end
+
+        tape_info.has_info = true
+
+        tape.seek(-tape.getSize())
+        tape.seek(old_pos)
+
+        if was_playing == "PLAYING" then
+            tape.play()
+        end
+    else
+        tape_info.has_info = false
+    end
+end
 
 threads.render = thread.create(function() 
     local stat, err = pcall(function ()
@@ -210,48 +253,16 @@ threads.render = thread.create(function()
 
             local lw = write(3,5, "Scan Content", color.dotted_2)
             addButton(3,5, lw, 5, function()
-                local old_pos = tape.getPosition()
-                local was_playing = tape.getState()
-                
-                if tape.isReady() then
-                    tape.stop()
-                    tape.seek(tape.getSize())
-                    local searcher_amount = tape.getSize()/16
-                    while true do
-                        tape.seek(-(searcher_amount+1))
-                        --print(tape.getPosition(), searcher_amount)
-                        local tape_pos = tape.getPosition()
-                        local lw = write(3,7, "Content Size: ", color.text1, color.black, true)
-                        write(lw, 7, tape_pos.." ("..searcher_amount..")", color.state_warn)
-
-                        fill(2, height-2, width-1, height-2, color.black, color.dotted_2, "┉")
-                        write(clamp(1+((width-2)*(tape_pos/tape_info.size)), 2, width-1), height-2, "|", color.titlebar_text1)
-                        local byte = string.byte(tape.read(1))
-                        if byte ~= 0 and byte ~= 170 then
-                            if searcher_amount == 1 then
-                                tape_info.content = tape.getPosition()
-                                break
-                            else
-                                tape.seek(searcher_amount)
-                                searcher_amount = math.ceil(searcher_amount/2)
-                            end
-                        end
-                    end
-
-                    tape_info.has_info = true
-
-                    tape.seek(-tape.getSize())
-                    tape.seek(old_pos)
-
-                    if was_playing == "PLAYING" then
-                        tape.play()
-                    end
-                else
-                    tape_info.has_info = false
-                end
-
+                scanContent()
                 event.push("tp_render")
             end)
+            local lw2 = write(lw+5, 5, "Autoscan: ", color.dotted_2)
+            local lw3 = write(lw2, 5, ((autoscan and "Enabled") or "Disabled"), color.dotted_1)
+            addButton(lw2, 5, lw3, 5, function()
+                autoscan = not autoscan
+                event.push("tp_render")
+            end)
+
             
             local lw = write(3,6, "Label: ", color.text1)
             write(lw, 6, tape_info.label:gsub("§%w", ""), color.white)
@@ -386,6 +397,7 @@ threads.tapewatcher = thread.create(
             local old_pos = 0
             while true do
                 local redraw = false
+                local rescan = false
                 local tape_state = tape.getState()
                 local tape_pos = tape.getPosition()
 
@@ -426,6 +438,7 @@ threads.tapewatcher = thread.create(
                     tape_info.has_info = false
                     tape_info.content = 0
                     redraw = true
+                    rescan = true
                 end
                 
                 local new_size = tape.getSize() or 0
@@ -438,6 +451,10 @@ threads.tapewatcher = thread.create(
 
                 if redraw then
                     event.push("tp_render")
+                end
+                if rescan and autoscan and tape.isReady() then
+                    scanContent()
+                    tape.seek(-tape.getSize())
                 end
                 os.sleep(0.5)
             end
