@@ -188,7 +188,8 @@ local tape_info = {
     has_info=false,
     label="No Tape",
     size=0,
-    content=0
+    content=0,
+    detected_quality=0
 }
 
 threads.render = thread.create(function() 
@@ -253,7 +254,7 @@ threads.render = thread.create(function()
             end)
             
             local lw = write(3,6, "Label: ", color.text1)
-            write(lw, 6, tape_info.label, color.white)
+            write(lw, 6, tape_info.label:gsub("§%w", ""), color.white)
 
             local lw = write(3,7, "Content Size: ", color.text1)
             if tape_info.content == 0 then
@@ -264,6 +265,15 @@ threads.render = thread.create(function()
 
             local lw = write(3,8, "Max Size: ", color.text1)
             write(lw, 8, bytesToString(tape_info.size), color.white)
+
+            if tape_info.detected_quality > 0 then
+                local lw = write(3, 10, "Detected Quality: ", color.dotted_2)
+                if tape_info.detected_quality == 1 then
+                    write(lw, 10, "Normal", color.dotted_1)
+                elseif tape_info.detected_quality == 2 then
+                    write(lw, 10, "High", color.dotted_1)
+                end
+            end
 
             local lw = write(2, height-6, "Volume: ", color.text1, color.black)
             write(lw, height-6, string.format("%.0f%%", volume*100), color.white)
@@ -335,14 +345,15 @@ threads.render = thread.create(function()
                 tape.stop()
             end)
 
+            local lw = write(lw+3, height-1, "Loop: ", color.text1)
             if tape_info.has_info then
-                local lw = write(lw+3, height-1, "Loop: ", color.text1)
                 local lw2 = write(lw, height-1, ((loop and "Enabled") or "Disabled"), color.white)
                 addButton(lw, height-1, lw2, height-1, function()
                     loop = not loop
                     event.push("tp_render")
                 end)
             else
+                write(lw, height-1, "Scan Required", color.state_off)
                 loop = false
             end
             
@@ -385,17 +396,33 @@ threads.tapewatcher = thread.create(
 
                 if tape_pos ~= old_pos then
                     if tape_info.has_info then
-                        if loop and tape_pos > tape_info.content then
-                            tape.seek(-tape.getSize())
+                        if tape_pos > tape_info.content then
+                            if loop then
+                                tape.seek(-tape.getSize())
+                            else
+                                tape.stop()
+                            end
                         end
                     end
                     redraw = true
                 end
                 old_pos = tape_pos
                 
-                local new_label = tape.getLabel() or "No Tape"
+                local new_label = (tape.getLabel() or "No Tape")
                 if new_label ~= tape_info.label then
                     tape_info.label = new_label
+                    local label_color = tape_info.label:match("§(%w)")
+                    if label_color == "6" then
+                        tape_info.detected_quality = 2
+                        speed = 2
+                        tape.setSpeed(speed)
+                    elseif label_color == "7" then 
+                        tape_info.detected_quality = 1
+                        speed = 1
+                        tape.setSpeed(speed)
+                    else
+                        tape_info.detected_quality = 0
+                    end
                     tape_info.has_info = false
                     tape_info.content = 0
                     redraw = true
