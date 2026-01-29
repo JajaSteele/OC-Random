@@ -397,7 +397,6 @@ threads.tapewatcher = thread.create(
             local old_pos = 0
             while true do
                 local redraw = false
-                local rescan = false
                 local tape_state = tape.getState()
                 local tape_pos = tape.getPosition()
 
@@ -438,7 +437,6 @@ threads.tapewatcher = thread.create(
                     tape_info.has_info = false
                     tape_info.content = 0
                     redraw = true
-                    rescan = true
                 end
                 
                 local new_size = tape.getSize() or 0
@@ -449,12 +447,13 @@ threads.tapewatcher = thread.create(
                     redraw = true
                 end
 
-                if redraw then
-                    event.push("tp_render")
-                end
-                if rescan and autoscan and tape.isReady() then
+                if autoscan and tape.isReady() and not tape_info.has_info then
                     scanContent()
                     tape.seek(-tape.getSize())
+                    redraw = true
+                end
+                if redraw then
+                    event.push("tp_render")
                 end
                 os.sleep(0.5)
             end
