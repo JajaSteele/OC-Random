@@ -458,17 +458,18 @@ if lb then
                                     end
                                     lb_tick = (lb_tick+2)%180
                                     for i1=1, lb_count do
-                                        local r = math.sin(math.rad((lb_tick+(i1*4))%180))*255
-                                        local g = 0
-                                        local b = 255-(math.sin(math.rad((lb_tick+(i1*4))%180))*192)
+                                        local r = clamp(math.sin(math.rad((lb_tick+(i1*6))%180))*255, 0, 255)
+                                        local g = clamp(128-(math.sin(math.rad((lb_tick+(i1*6))%180))*128), 0, 255)
+                                        local b = clamp(255-(math.sin(math.rad((lb_tick+(i1*6))%180))*92), 0, 255)
 
                                         if i1 > bar_pos then
                                             r = r/8
+                                            g = g/8
                                             b = b/8
                                         elseif i1 == bar_pos then
-                                            r = clamp(r+92, 0, 255)
-                                            g = g+92
-                                            b = clamp(b+92, 0, 255)
+                                            r = clamp(r+64, 0, 255)
+                                            g = g+64
+                                            b = clamp(b+64, 0, 255)
                                         end
                                         lb.setActive(i1, true)
                                         lb.setColor(i1, rgbToHex(r, g, b))
