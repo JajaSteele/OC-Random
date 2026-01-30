@@ -8,6 +8,15 @@ local screen = component.screen
 local gpu = component.gpu
 local tape = component.tape_drive
 
+local lb
+local lb_count
+local lb_active
+if component.isAvailable("light_board") then
+    lb = component.light_board
+    lb_count = lb.light_count
+    lb_active = true
+end
+
 local function clamp(x,min,max) if x > max then return max elseif x < min then return min else return x end end
 
 local function DEBUG(...)
@@ -19,6 +28,11 @@ local function DEBUG(...)
         end
         component.chat_box.say(tostring(txt))
     end
+end
+
+local function rgbToHex(r,g,b)
+    local rgb = (math.floor(r) * 0x10000) + (math.floor(g) * 0x100) + math.floor(b)
+    return tonumber("0x"..string.format("%06x", rgb))
 end
 
 local function write(x,y, text, fg, bg, clearLine)
@@ -183,6 +197,8 @@ local loop = false
 local autoscan = false
 local autoplay = false
 
+local lb_tick = 0
+
 tape.setVolume(volume)
 tape.setSpeed(speed)
 
@@ -199,6 +215,7 @@ local function scanContent()
     local was_playing = tape.getState()
     
     if tape.isReady() then
+        lb_active = false
         tape.stop()
         tape.seek(tape.getSize())
         local searcher_amount = tape.getSize()/16
@@ -211,6 +228,19 @@ local function scanContent()
 
             fill(2, height-2, width-1, height-2, color.black, color.dotted_2, "┉")
             write(clamp(1+((width-2)*(tape_pos/tape_info.size)), 2, width-1), height-2, "|", color.titlebar_text1)
+
+            if lb then
+                lb_tick = (lb_tick+32)%180
+                for i1=1, lb_count do
+                    local r = math.sin(math.rad((lb_tick+(i1*16))%180))*128
+                    local g = 255
+                    local b = 64 + (math.sin(math.rad((lb_tick+(i1*16))%180))*127)
+
+                    lb.setActive(i1, true)
+                    lb.setColor(i1, rgbToHex(r, g, b))
+                end
+            end
+
             local byte = string.byte(tape.read(1))
             if byte ~= 0 and byte ~= 170 then
                 if searcher_amount == 1 then
@@ -231,6 +261,8 @@ local function scanContent()
         if was_playing == "PLAYING" then
             tape.play()
         end
+        lb_active = true
+        event.push("tp_lightboard")
     else
         tape_info.has_info = false
     end
@@ -314,7 +346,7 @@ threads.render = thread.create(function()
             end)
 
             local lw = write(math.ceil(width/2)+2, height-6, "Speed: ", color.text1, color.black)
-            write(lw, height-6, string.format("%.0f%%", speed*100), color.white)
+            write(lw, height-6, string.format("%.0f%%", (speed*100)/((tape_info.detected_quality == 2 and 2) or 1)), color.white)
             fill(math.ceil(width/2)+2, height-5, width-1, height-5, color.black, color.state_off, "━")
             fill(math.ceil(width/2)+2, height-5, getSliderPos((speed-0.25)/1.75, math.ceil(width/2)+2, width-1), height-5, color.black, color.state_on, "━")
             addButton(math.ceil(width/2)+2, height-5, width-1, height-5, function(ev)
@@ -402,6 +434,97 @@ threads.render = thread.create(function()
     end
 end)
 
+if lb then
+    threads.lightboard = thread.create(
+        function ()
+            local stat, err = pcall(function ()
+                while true do
+                    event.pull("tp_lightboard")
+                    if lb_active then
+                        if tape.isReady() then
+                            local state = tape.getState()
+                            if state == "STOPPED" then
+                                for i1 = 1, lb.light_count do
+                                    lb.setActive(i1, true)
+                                    lb.setColor(i1, 0x770000)
+                                end
+                            elseif state == "PLAYING" then
+                                while tape.getState() == "PLAYING" do
+                                    local bar_pos
+                                    if tape_info.has_info then
+                                        bar_pos = math.floor(lb_count*(tape.getPosition()/tape_info.content))
+                                    else
+                                        bar_pos = math.floor(lb_count*(tape.getPosition()/tape_info.size))
+                                    end
+                                    lb_tick = (lb_tick+2)%180
+                                    for i1=1, lb_count do
+                                        local r = math.sin(math.rad((lb_tick+(i1*4))%180))*255
+                                        local g = 0
+                                        local b = 255-(math.sin(math.rad((lb_tick+(i1*4))%180))*192)
+
+                                        if i1 > bar_pos then
+                                            r = r/8
+                                            b = b/8
+                                        elseif i1 == bar_pos then
+                                            r = clamp(r+92, 0, 255)
+                                            g = g+92
+                                            b = clamp(b+92, 0, 255)
+                                        end
+                                        lb.setActive(i1, true)
+                                        lb.setColor(i1, rgbToHex(r, g, b))
+                                    end
+                                    os.sleep(0.05)
+                                end
+                            elseif state == "FORWARDING" then
+                                while tape.getState() == "FORWARDING"do
+                                    for i1=1, lb_count do
+                                        local res = (i1-lb_tick)%7
+                                        if res == 2 then
+                                            lb.setColor(i1, 0xffc800)
+                                        elseif res == 1 then
+                                            lb.setColor(i1, 0xe38400)
+                                        elseif res == 0 then
+                                            lb.setColor(i1, 0xc23a00)
+                                        else
+                                            lb.setColor(i1, 0x771700)
+                                        end
+                                    end
+                                    lb_tick = (lb_tick+1)%7
+                                    os.sleep(0.05)
+                                end
+                            elseif state == "REWINDING" then
+                                while tape.getState() == "REWINDING"do
+                                    for i1=1, lb_count do
+                                        local res = (i1+lb_tick)%7
+                                        if res == 0 then
+                                            lb.setColor(i1, 0xffc800)
+                                        elseif res == 1 then
+                                            lb.setColor(i1, 0xe38400)
+                                        elseif res == 2 then
+                                            lb.setColor(i1, 0xc23a00)
+                                        else
+                                            lb.setColor(i1, 0x771700)
+                                        end
+                                    end
+                                    lb_tick = (lb_tick+1)%7
+                                    os.sleep(0.05)
+                                end
+                            end
+                        else
+                            for i1 = 1, lb.light_count do
+                                lb.setActive(i1, false)
+                            end
+                        end
+                    end
+                end
+            end)
+            if not stat then
+                quit(err or "")
+            end
+        end
+    )
+end
+
 threads.tapewatcher = thread.create(
     function ()
         local stat, err = pcall(function ()
@@ -470,6 +593,7 @@ threads.tapewatcher = thread.create(
                 end
                 if redraw then
                     event.push("tp_render")
+                    event.push("tp_lightboard")
                 end
                 os.sleep(0.5)
             end
