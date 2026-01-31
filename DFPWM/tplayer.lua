@@ -17,6 +17,13 @@ if component.isAvailable("light_board") then
     lb_active = true
 end
 
+local trans
+if component.isAvailable("transposer") then
+    trans = component.transposer
+end
+
+term.clear()
+
 local function clamp(x,min,max) if x > max then return max elseif x < min then return min else return x end end
 
 local function DEBUG(...)
@@ -77,6 +84,92 @@ local function fill(x,y, x2,y2, bg, fg, char)
 
     gpu.setForeground(old_fg)
     gpu.setBackground(old_bg)
+end
+
+local tape_display_list = {}
+
+local tape_list = {}
+local trans_side = {}
+local function scanTapes(verbose)
+    tape_list = {}
+    tape_display_list = {}
+
+    if verbose then
+        print("Extracting current tape")
+    end
+    trans.transferItem(trans_side.drive, trans_side.storage, 1, 1)
+
+    if verbose then
+        print("Scanning storage slots")
+    end
+    local storage_inv = trans.getAllStacks(trans_side.storage).getAll()
+    local count = 0
+    for slot, data in pairs(storage_inv) do
+        if data.name == "computronics:tape" then
+            count = count + 1
+            local tape_metadata = {}
+            trans.transferItem(trans_side.storage, trans_side.drive, 1, slot, 1)
+            local label = tape.getLabel():gsub("§%w", "")
+            tape_metadata.label = label
+            tape_metadata.slot = slot
+
+            local label_parts = {}
+            for part in label:gmatch("[^%-]+") do
+                part = part:gsub("^%s", "")
+                part = part:gsub("%s$", "")
+                label_parts[#label_parts+1] = part
+            end
+            if #label_parts == 3 then
+                tape_metadata.artist, tape_metadata.album, tape_metadata.title = table.unpack(label_parts)
+            elseif #label_parts == 2 then
+                tape_metadata.artist, tape_metadata.title = table.unpack(label_parts)
+            elseif #label_parts == 1 then
+                tape_metadata.title = table.unpack(label_parts)
+            end
+
+            tape_list[#tape_list+1] = tape_metadata
+            tape_display_list[#tape_display_list+1] = {
+                data=tape_metadata,
+                id=#tape_list
+            }
+            trans.transferItem(trans_side.drive, trans_side.storage, 1, 1, slot)
+        end
+    end
+
+    if verbose then
+        print("Sorting display list")
+    end
+    table.sort(tape_display_list, function(a,b)
+        if a.data.album and not b.data.album then
+            return true
+        elseif a.data.artist and not b.data.artist then
+            return true
+        else
+            return a.data.label < b.data.label
+        end
+    end)
+
+    if verbose then
+        print("Done!")
+        print("Found "..count.." tapes")
+    end
+end
+if trans then
+    print("Scanning sides..")
+    for i1=0, 5 do
+        local name = trans.getInventoryName(i1)
+        if name then
+            if name:match("tape_reader") then
+                trans_side.drive = i1
+                print("Found tape drive")
+            else
+                trans_side.storage = i1
+                print("Found storage")
+            end
+        end
+    end
+
+    scanTapes(true)
 end
 
 local function getSliderOutput(curr_x, x1, x2, min, max)
@@ -191,11 +284,21 @@ local function quit(err)
     end
 end
 
+local render_mode = 0
+
 local volume = 1
 local speed = 1
 local loop = false
 local autoscan = false
 local autoplay = false
+local autoloop = false
+
+local play_history = {}
+local playlist_mode = false
+local shuffle_mode = false
+local current_tape = 1
+
+local scroll = 0
 
 local lb_tick = 0
 
@@ -268,6 +371,16 @@ local function scanContent()
     end
 end
 
+local function changeTape(playlist_pos)
+    local old_metadata = tape_list[current_tape]
+    trans.transferItem(trans_side.drive, trans_side.storage, 1, 1, old_metadata.slot)
+
+    current_tape = playlist_pos
+
+    local new_metadata = tape_list[current_tape]
+    trans.transferItem(trans_side.storage, trans_side.drive, 1, new_metadata.slot, 1)
+end
+
 threads.render = thread.create(function() 
     local stat, err = pcall(function ()
         while true do
@@ -279,151 +392,250 @@ threads.render = thread.create(function()
 
             term.clear()
 
-            local tape_pos = tape.getPosition()
-            
-            fill(1,1, width, 3, color.titlebar_bg)
-            write(3,2, "Tape Player", color.titlebar_text1, color.titlebar_bg)
+            if render_mode == 0 then
+                local tape_pos = tape.getPosition()
+                
+                fill(1,1, width, 3, color.titlebar_bg)
+                write(3,2, "Tape Player", color.titlebar_text1, color.titlebar_bg)
 
-            local lw = write(3,5, "Scan Content", color.dotted_2)
-            addButton(3,5, lw, 5, function()
-                scanContent()
-                event.push("tp_render")
-            end)
-            local lw2 = write(lw+5, 5, "Autoscan: ", color.dotted_2)
-            local lw3 = write(lw2, 5, ((autoscan and "Enabled") or "Disabled"), color.dotted_1)
-            addButton(lw2, 5, lw3, 5, function()
-                autoscan = not autoscan
-                event.push("tp_render")
-            end)
-
-            if autoscan then
-                local lw2 = write(lw3+5, 5, "Autoplay: ", color.dotted_2)
-                local lw3 = write(lw2, 5, ((autoplay and "Enabled") or "Disabled"), color.dotted_1)
+                local lw = write(3,5, "Scan Content", color.dotted_2)
+                addButton(3,5, lw, 5, function()
+                    scanContent()
+                    event.push("tp_render")
+                end)
+                local lw2 = write(lw+4, 5, "Autoscan: ", color.dotted_2)
+                local lw3 = write(lw2, 5, ((autoscan and "Enabled") or "Disabled"), color.dotted_1)
                 addButton(lw2, 5, lw3, 5, function()
-                    autoplay = not autoplay
+                    autoscan = not autoscan
                     event.push("tp_render")
                 end)
-            else
-                autoplay = false
-            end
 
-            
-            local lw = write(3,6, "Label: ", color.text1)
-            write(lw, 6, tape_info.label:gsub("§%w", ""), color.white)
-
-            local lw = write(3,7, "Content Size: ", color.text1)
-            if tape_info.content == 0 then
-                write(lw, 7, "Scan Required", color.state_off)
-            else
-                write(lw, 7, bytesToString(tape_info.content), color.white)
-            end
-
-            local lw = write(3,8, "Max Size: ", color.text1)
-            write(lw, 8, bytesToString(tape_info.size), color.white)
-
-            if tape_info.detected_quality > 0 then
-                local lw = write(3, 10, "Detected Quality: ", color.dotted_2)
-                if tape_info.detected_quality == 1 then
-                    write(lw, 10, "Normal", color.dotted_1)
-                elseif tape_info.detected_quality == 2 then
-                    write(lw, 10, "High", color.dotted_1)
+                if autoscan then
+                    lw2 = write(lw3+4, 5, "Autoplay: ", color.dotted_2)
+                    lw3 = write(lw2, 5, ((autoplay and "Enabled") or "Disabled"), color.dotted_1)
+                    addButton(lw2, 5, lw3, 5, function()
+                        autoplay = not autoplay
+                        event.push("tp_render")
+                    end)
+                else
+                    autoplay = false
                 end
-            end
 
-            local lw = write(2, height-6, "Volume: ", color.text1, color.black)
-            write(lw, height-6, string.format("%.0f%%", volume*100), color.white)
-            fill(2, height-5, math.floor(width/2)-1, height-5, color.black, color.state_off, "━")
-            fill(2, height-5, getSliderPos(volume, 2, math.floor(width/2)-1), height-5, color.black, color.state_on, "━")
-            addButton(2, height-5, math.floor(width/2)-1, height-5, function(ev)
+                if autoscan then
+                    lw2 = write(lw3+4, 5, "Autoloop: ", color.dotted_2)
+                    lw3 = write(lw2, 5, ((autoloop and "Enabled") or "Disabled"), color.dotted_1)
+                    addButton(lw2, 5, lw3, 5, function()
+                        autoloop = not autoloop
+                        event.push("tp_render")
+                    end)
+                else
+                    autoloop = false
+                end
+
+                
+                local lw = write(3,6, "Label: ", color.text1)
+                write(lw, 6, tape_info.label:gsub("§%w", ""), color.white)
+
+                local lw = write(3,7, "Content Size: ", color.text1)
+                if tape_info.content == 0 then
+                    write(lw, 7, "Scan Required", color.state_off)
+                else
+                    write(lw, 7, bytesToString(tape_info.content), color.white)
+                end
+
+                local lw = write(3,8, "Max Size: ", color.text1)
+                write(lw, 8, bytesToString(tape_info.size), color.white)
+
+                local lw = write(3, 10, "Detected Tapes: ", color.text1)
+                if trans then
+                    local lw = write(lw, 10, #tape_list, color.white)
+
+                    local lw2 = write(lw+3, 10, "Rescan", color.dotted_2)
+                    addButton(lw+3, 10, lw2, 10, function()
+                        write(lw+3, 10, "Rescan", color.state_warn)
+                        scanTapes(false)
+                        event.push("tp_render")
+                    end)
+                    local lw3 = write(lw2+3, 10, "Switch Tape", color.dotted_2)
+                    addButton(lw2+3, 10, lw3, 10, function()
+                        render_mode = 1
+                        scroll = 0
+                        event.push("tp_render")
+                    end)
+
+                    local lw = write(3, 11, "Playlist Mode: ", color.dotted_2)
+
+                    if not autoscan then
+                        write(lw, 11, "Requires Autoscan", color.state_off)
+                        playlist_mode = false
+                    elseif not autoplay then
+                        write(lw, 11, "Requires Autoplay", color.state_off)
+                        playlist_mode = false
+                    elseif autoloop then
+                        write(lw, 11, "Conflicts with Autoloop", color.state_off)
+                        playlist_mode = false
+                    else
+                        lw2 = write(lw, 11, ((playlist_mode and "Enabled") or "Disabled"), color.dotted_1)
+                        addButton(lw, 11, lw2, 11, function()
+                            playlist_mode = not playlist_mode
+                            if playlist_mode then
+                                autoplay = true
+                                autoscan = true
+                                autoloop = false
+                                if not tape.isReady() then
+                                    local metadata = tape_list[current_tape]
+                                    trans.transferItem(trans_side.storage, trans_side.drive, 1, metadata.slot, 1)
+                                end
+                            end
+                            event.push("tp_render")
+                        end)
+
+                        if playlist_mode then
+                            local lw = write(lw2+5, 11, "Shuffle: ", color.dotted_2)
+                            lw2 = write(lw, 11, ((shuffle_mode and "Enabled") or "Disabled"), color.dotted_1)
+                            addButton(lw, 11, lw2, 11, function()
+                                shuffle_mode = not shuffle_mode
+                                event.push("tp_render")
+                            end)
+                        end
+                    end
+                else
+                    write(lw, 10, "? Missing Transposer", color.state_off)
+                end
+
+                if tape_info.detected_quality > 0 then
+                    local lw = write(3, 13, "Detected Quality: ", color.dotted_2)
+                    if tape_info.detected_quality == 1 then
+                        write(lw, 13, "Normal", color.dotted_1)
+                    elseif tape_info.detected_quality == 2 then
+                        write(lw, 13, "High", color.dotted_1)
+                    end
+                end
+
+                local lw = write(2, height-6, "Volume: ", color.text1, color.black)
+                write(lw, height-6, string.format("%.0f%%", volume*100), color.white)
+                fill(2, height-5, math.floor(width/2)-1, height-5, color.black, color.state_off, "━")
+                fill(2, height-5, getSliderPos(volume, 2, math.floor(width/2)-1), height-5, color.black, color.state_on, "━")
+                addButton(2, height-5, math.floor(width/2)-1, height-5, function(ev)
+                    local _, _, x, y, b = table.unpack(ev)
+                    if b == 0 then
+                        volume = getSliderOutput(x, 2, math.floor(width/2)-1, 0, 1)
+                    else
+                        volume = 1
+                    end
+                    tape.setVolume(volume)
+                    event.push("tp_render")
+                end)
+
+                local lw = write(math.ceil(width/2)+2, height-6, "Speed: ", color.text1, color.black)
+                write(lw, height-6, string.format("%.0f%%", (speed*100)/((tape_info.detected_quality == 2 and 2) or 1)), color.white)
+                fill(math.ceil(width/2)+2, height-5, width-1, height-5, color.black, color.state_off, "━")
+                fill(math.ceil(width/2)+2, height-5, getSliderPos((speed-0.25)/1.75, math.ceil(width/2)+2, width-1), height-5, color.black, color.state_on, "━")
+                addButton(math.ceil(width/2)+2, height-5, width-1, height-5, function(ev)
                 local _, _, x, y, b = table.unpack(ev)
-                if b == 0 then
-                    volume = getSliderOutput(x, 2, math.floor(width/2)-1, 0, 1)
+                    if b == 0 then
+                        speed = getSliderOutput(x, math.ceil(width/2)+2, width-1, 0.25, 2)
+                    else
+                        speed = 1
+                    end
+                    tape.setSpeed(speed)
+                    event.push("tp_render")
+                end)
+
+                local lw = write(2, height-3, "State: ", color.text1)
+                write(lw, height-3, tape.getState(), color.white)
+
+                -- Seek bar
+                
+                if tape.isReady() then
+                    fill(2, height-2, width-1, height-2, color.black, color.tape_empty, "━")
+                    if tape_info.has_info then
+                        fill(2, height-2, math.floor(1+((width-2)*(tape_info.content/tape_info.size))), height-2, color.black, color.tape_content, "━")
+                    end
+                    write(clamp(1+((width-2)*(tape_pos/tape_info.size)), 2, width-1), height-2, "|", color.titlebar_text1)
                 else
-                    volume = 1
+                    fill(2, height-2, width-1, height-2, color.black, color.dotted_2, "┉")
                 end
-                tape.setVolume(volume)
-                event.push("tp_render")
-            end)
 
-            local lw = write(math.ceil(width/2)+2, height-6, "Speed: ", color.text1, color.black)
-            write(lw, height-6, string.format("%.0f%%", (speed*100)/((tape_info.detected_quality == 2 and 2) or 1)), color.white)
-            fill(math.ceil(width/2)+2, height-5, width-1, height-5, color.black, color.state_off, "━")
-            fill(math.ceil(width/2)+2, height-5, getSliderPos((speed-0.25)/1.75, math.ceil(width/2)+2, width-1), height-5, color.black, color.state_on, "━")
-            addButton(math.ceil(width/2)+2, height-5, width-1, height-5, function(ev)
-            local _, _, x, y, b = table.unpack(ev)
-                if b == 0 then
-                    speed = getSliderOutput(x, math.ceil(width/2)+2, width-1, 0.25, 2)
-                else
-                    speed = 1
-                end
-                tape.setSpeed(speed)
-                event.push("tp_render")
-            end)
+                addButton(2, height-2, width-1, height-2, function(ev)
+                    local _, _, x, y, b = table.unpack(ev)
 
-            local lw = write(2, height-3, "State: ", color.text1)
-            write(lw, height-3, tape.getState(), color.white)
+                    local estimated_pos = math.ceil(clamp(tape_info.size*((x-1)/(width-2)), 0, tape_info.size))
+                    tape.seek(estimated_pos-tape.getPosition())
 
-            -- Seek bar
-            
-            if tape.isReady() then
-                fill(2, height-2, width-1, height-2, color.black, color.tape_empty, "━")
+                    event.push("tp_render")
+                end)
+
+                local lw = write(2, height-1, "Rewind", color.state_warn)
+                addButton(2, height-1, lw, height-1, function()
+                    tape.seek(-tape.getSize())
+                    event.push("tp_render")
+                end)
+
+                local lw = write(lw+1, height-1, "Play", color.state_on)
+                addButton(2, height-1, lw, height-1, function()
+                    tape.play()
+                end)
+
+                local lw = write(lw+1, height-1, "Stop", color.state_off)
+                addButton(2, height-1, lw, height-1, function()
+                    tape.stop()
+                end)
+
+                local lw = write(lw+3, height-1, "Loop: ", color.text1)
                 if tape_info.has_info then
-                    fill(2, height-2, math.floor(1+((width-2)*(tape_info.content/tape_info.size))), height-2, color.black, color.tape_content, "━")
+                    local lw2 = write(lw, height-1, ((loop and "Enabled") or "Disabled"), color.white)
+                    addButton(lw, height-1, lw2, height-1, function()
+                        loop = not loop
+                        event.push("tp_render")
+                    end)
+                else
+                    write(lw, height-1, "Scan Required", color.state_off)
+                    loop = false
                 end
-                write(clamp(1+((width-2)*(tape_pos/tape_info.size)), 2, width-1), height-2, "|", color.titlebar_text1)
-            else
-                fill(2, height-2, width-1, height-2, color.black, color.dotted_2, "┉")
-            end
+                
+                local content_time
 
-            addButton(2, height-2, width-1, height-2, function(ev)
-                local _, _, x, y, b = table.unpack(ev)
+                if tape_info.has_info then
+                    content_time = secondsToDuration((tape_info.content/6000)/speed)
+                else
+                    content_time = secondsToDuration((tape_info.size/6000)/speed)
+                end
+                local elapsed_time = secondsToDuration((tape_pos/6000)/speed)
 
-                local estimated_pos = math.ceil(clamp(tape_info.size*((x-1)/(width-2)), 0, tape_info.size))
-                tape.seek(estimated_pos-tape.getPosition())
+                local time_string = "("..elapsed_time.."/"..content_time..")"
 
-                event.push("tp_render")
-            end)
-
-            local lw = write(2, height-1, "Rewind", color.state_warn)
-            addButton(2, height-1, lw, height-1, function()
-                tape.seek(-tape.getSize())
-                event.push("tp_render")
-            end)
-
-            local lw = write(lw+1, height-1, "Play", color.state_on)
-            addButton(2, height-1, lw, height-1, function()
-                tape.play()
-            end)
-
-            local lw = write(lw+1, height-1, "Stop", color.state_off)
-            addButton(2, height-1, lw, height-1, function()
-                tape.stop()
-            end)
-
-            local lw = write(lw+3, height-1, "Loop: ", color.text1)
-            if tape_info.has_info then
-                local lw2 = write(lw, height-1, ((loop and "Enabled") or "Disabled"), color.white)
-                addButton(lw, height-1, lw2, height-1, function()
-                    loop = not loop
+                local lw = write(width-(#time_string), height-1, time_string, color.dotted_1)
+            elseif render_mode == 1 then
+                fill(1,1, width, 3, color.titlebar_bg)
+                write(3,2, "Tape Selector", color.titlebar_text1, color.titlebar_bg)
+                
+                local back_text = "Cancel"
+                local back_x = width-#back_text
+                local lw = write(back_x, 2, back_text, color.state_off, color.titlebar_bg)
+                addButton(back_x, 2, lw, 2, function()
+                    render_mode = 0
                     event.push("tp_render")
                 end)
-            else
-                write(lw, height-1, "Scan Required", color.state_off)
-                loop = false
+                
+                local x_offset = #tostring(#tape_list)+2
+                for i1=1, height-5 do
+                    local tape_pos = i1+scroll
+                    local tape_data = tape_display_list[tape_pos]
+                    local write_y = 4+i1
+                    if tape_data then
+                        local tape_id = tape_data.id
+                        local tape_metadata = tape_data.data
+                        write(2, write_y, tostring(tape_id), color.state_warn)
+                        local lw = write(3+x_offset, write_y, tape_metadata.label, color.text1)
+                        addButton(3+x_offset, write_y, lw, write_y, function()
+                            changeTape(tape_id)
+                            render_mode = 0
+                            event.push("tp_render")
+                        end)
+                    end
+                end
             end
-            
-            local content_time
-
-            if tape_info.has_info then
-                content_time = secondsToDuration((tape_info.content/6000)/speed)
-            else
-                content_time = secondsToDuration((tape_info.size/6000)/speed)
-            end
-            local elapsed_time = secondsToDuration((tape_pos/6000)/speed)
-
-            local time_string = "("..elapsed_time.."/"..content_time..")"
-
-            local lw = write(width-(#time_string), height-1, time_string, color.dotted_1)
 
             gpu.bitblt(0, 1,1, width, height, drawBuffer, 1, 1)
             gpu.setActiveBuffer(0)
@@ -546,8 +758,42 @@ threads.tapewatcher = thread.create(
                         if tape_pos > tape_info.content then
                             if loop then
                                 tape.seek(-tape.getSize())
+                                if tape.getState() ~= "PLAYING" then
+                                    tape.play()
+                                end
                             else
                                 tape.stop()
+                            end
+
+                            if playlist_mode then
+                                play_history[#play_history+1] = current_tape
+                                if #play_history > math.min(10, (#tape_list)-1) then
+                                    table.remove(play_history, 1)
+                                end
+                                if shuffle_mode then
+                                    local random
+                                    while true do
+                                        random = math.random(1, #tape_list)
+                                        local is_okay = true
+                                        for k,v in pairs(play_history) do
+                                            if v == random then
+                                                is_okay = false
+                                                break
+                                            end
+                                        end
+                                        if is_okay then
+                                            break
+                                        end
+                                    end
+                                    changeTape(random)
+                                else
+                                    local new_tape = current_tape+1
+                                    if new_tape > #tape_list then
+                                        new_tape = 1
+                                    end
+
+                                    changeTape(new_tape)
+                                end
                             end
                         end
                     end
@@ -588,6 +834,8 @@ threads.tapewatcher = thread.create(
                     tape.seek(-tape.getSize())
                     if autoplay then
                         tape.play()
+                    end
+                    if autoloop then
                         loop = true
                     end
                     redraw = true
@@ -683,6 +931,11 @@ local eventThread = thread.create(function ()
                             break
                         end
                     end
+                end
+            elseif ev[1] == "scroll" then
+                if render_mode == 1 then
+                    scroll = clamp(scroll-ev[5], 0, #tape_list)
+                    event.push("tp_render")
                 end
             end
         end
