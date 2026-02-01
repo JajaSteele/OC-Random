@@ -105,6 +105,8 @@ local function sortTapeList(useIDs)
     end
 end
 
+local sort_by_id = false
+
 local tape_list = {}
 local trans_side = {}
 local function scanTapes(verbose)
@@ -163,7 +165,7 @@ local function scanTapes(verbose)
     if verbose then
         print("Sorting display list")
     end
-    sortTapeList(false)
+    sortTapeList(sort_by_id)
 
     if verbose then
         print("Done!")
@@ -637,10 +639,19 @@ threads.render = thread.create(function()
                 write(3,2, "Tape Selector", color.titlebar_text1, color.titlebar_bg)
                 
                 local back_text = "Cancel"
-                local back_x = width-#back_text
+                local back_x = (width-#back_text)-1
                 local lw = write(back_x, 2, back_text, color.state_off, color.titlebar_bg)
                 addButton(back_x, 2, lw, 2, function()
                     render_mode = 0
+                    event.push("tp_render")
+                end)
+
+                local lw = write(3, 4, "Sort Mode: ", color.dotted_2)
+                local lw2 = write(lw, 4, (sort_by_id and "ID") or "Name", color.dotted_1)
+                addButton(lw,4,lw2,4, function()
+                    sort_by_id = not sort_by_id
+                    sortTapeList(sort_by_id)
+                    scroll = 0
                     event.push("tp_render")
                 end)
                 
@@ -781,7 +792,7 @@ threads.tapewatcher = thread.create(
 
                 if tape_pos ~= old_pos then
                     if tape_info.has_info then
-                        if tape_pos > tape_info.content then
+                        if tape_pos > math.min(tape_info.content+(9000*speed), tape_info.size-2) then
                             if loop then
                                 tape.seek(-tape.getSize())
                                 if tape.getState() ~= "PLAYING" then
