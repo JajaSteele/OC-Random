@@ -87,6 +87,23 @@ local function fill(x,y, x2,y2, bg, fg, char)
 end
 
 local tape_display_list = {}
+local function sortTapeList(useIDs)
+    if useIDs then
+        table.sort(tape_display_list, function(a,b)
+            return a.id < b.id
+        end)
+    else
+        table.sort(tape_display_list, function(a,b)
+            if a.data.album and not b.data.album then
+                return true
+            elseif a.data.artist and not b.data.artist then
+                return true
+            else
+                return a.data.label < b.data.label
+            end
+        end)
+    end
+end
 
 local tape_list = {}
 local trans_side = {}
@@ -127,6 +144,13 @@ local function scanTapes(verbose)
                 tape_metadata.title = table.unpack(label_parts)
             end
 
+            if verbose then
+                print("Detected tape: "..tape_metadata.label)
+                print("   Artist: "..(tape_metadata.artist or "UNKNOWN"))
+                print("   Album: "..(tape_metadata.album or "UNKNOWN"))
+                print("   Title: "..(tape_metadata.title or "UNKNOWN"))
+            end
+
             tape_list[#tape_list+1] = tape_metadata
             tape_display_list[#tape_display_list+1] = {
                 data=tape_metadata,
@@ -139,15 +163,7 @@ local function scanTapes(verbose)
     if verbose then
         print("Sorting display list")
     end
-    table.sort(tape_display_list, function(a,b)
-        if a.data.album and not b.data.album then
-            return true
-        elseif a.data.artist and not b.data.artist then
-            return true
-        else
-            return a.data.label < b.data.label
-        end
-    end)
+    sortTapeList(false)
 
     if verbose then
         print("Done!")
@@ -276,6 +292,16 @@ local function quit(err)
     gpu.setActiveBuffer(0)
     gpu.freeBuffer(drawBuffer)
     term.clear()
+    
+    if lb then
+        pcall(function ()
+            for i1=1, lb_count do
+                lb.setActive(i1, false)
+                lb.setColor(i1, 0x000000)
+            end
+        end)
+    end
+
     if err then
         print(err)
         --error(err)
