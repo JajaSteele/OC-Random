@@ -1,4 +1,4 @@
-local script_version = "1.7"
+local script_version = "1.8"
 -- AUTO UPDATE STUFF
 local curr_script = debug.getinfo(2, "S").source:gsub("^=", "")
 local script_io = io.open(curr_script, "r")
