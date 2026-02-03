@@ -518,7 +518,7 @@ local stat, err = pcall(function()
                     dialing_active = true
                     dial_step = 1
 
-                    if #decodeDialed(sg.dialedAddress) > 0 then
+                    if #decodeDialed(sg.dialedAddress or "") > 0 then
                         feedback("Clearing gate")
                         if sg.getGateStatus() == "open" then
                             sg.disengageGate()
