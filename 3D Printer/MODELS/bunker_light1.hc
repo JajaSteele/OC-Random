@@ -1,0 +1,1 @@
+{button_mode=false,noclip={off=false,on=false},redstone_level=0,shapes={off={{texture="chisel:blocks/glowstone/extra/neon-panel",coords={0,3,0,16,16,16}},{texture="minecraft:blocks/glass",coords={0,0,0,16,3,16}}},on={}},light_level=15}

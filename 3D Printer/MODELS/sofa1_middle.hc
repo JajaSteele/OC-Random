@@ -1,0 +1,1 @@
+{shapes={off={{coords={0,2,0,16,4,16},texture="chisel:blocks/planks-oak/panel-nails"},{coords={0,4,0,16,8,16},texture="quark:blocks/wool_quilted_red"},{coords={0,8,12,16,16,16},texture="quark:blocks/wool_quilted_red"}},on={}},redstone_level=0,noclip={off=false,on=false},light_level=0,button_mode=false}

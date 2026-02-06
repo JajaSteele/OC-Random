@@ -1,0 +1,1 @@
+{light_level=0,button_mode=false,noclip={on=false,off=false},redstone_level=0,shapes={on={},off={{texture="forestry:blocks/leaves/deciduousfancy",coords={1,0,1,16,14,15}}}}}
