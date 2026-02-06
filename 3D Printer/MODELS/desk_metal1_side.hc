@@ -1,0 +1,1 @@
+{noclip={on=false,off=false},button_mode=false,shapes={on={},off={{texture="opencomputers:blocks/waypoint_side",coords={1,0,1,8,9,15}},{texture="opencomputers:blocks/case_top",coords={0,15,0,16,16,16}},{texture="opencomputers:blocks/assembler_side",coords={0,9,0,16,15,16}}}},redstone_level=0,light_level=0}
