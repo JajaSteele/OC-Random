@@ -17,6 +17,14 @@ if component.isAvailable("light_board") then
     lb_active = true
 end
 
+local mods = {}
+local widgets = {}
+local gl
+if component.isAvailable("glasses") then
+    gl = component.glasses
+    gl.setTerminalName("Tape Player")
+end
+
 local trans
 if component.isAvailable("transposer") then
     trans = component.transposer
@@ -187,7 +195,11 @@ if trans then
         end
     end
 
-    scanTapes(true)
+    if trans_side.drive and trans_side.storage then
+        scanTapes(true)
+    else
+        trans = nil
+    end
 end
 
 local function getSliderOutput(curr_x, x1, x2, min, max)
@@ -283,6 +295,7 @@ term.getViewport()
 
 local drawBuffer = gpu.allocateBuffer(width, height)
 
+local first_exit = true
 local function quit(err)
     for k,v in pairs(threads) do
         print("quitting thread "..k)
@@ -291,17 +304,45 @@ local function quit(err)
         end)
     end
 
-    gpu.setActiveBuffer(0)
-    gpu.freeBuffer(drawBuffer)
-    term.clear()
+    if first_exit then
+        print("Clearing and exiting GPU buffer")
+        gpu.setActiveBuffer(0)
+        gpu.freeBuffer(drawBuffer)
+        term.clear()
+        first_exit = false
+    end
     
     if lb then
-        pcall(function ()
+        print("Clearing lightboard")
+        local stat2, err2 = pcall(function ()
             for i1=1, lb_count do
                 lb.setActive(i1, false)
                 lb.setColor(i1, 0x000000)
             end
         end)
+        if not stat2 then
+            print("Couldn't clear lightboard: "..err2)
+        end
+    end
+
+    if gl then
+        print("Clearing glasses")
+        local stat2, err2 = pcall(function ()
+            for k,widget in pairs(widgets) do
+                local mods = widget.getModifiers()
+                local id = widget.getID()
+                if mods then
+                    for k,v in pairs(mods) do
+                        widget.removeModifier(v[1])
+                    end
+                end
+                widget.removeWidget()
+            end
+            gl.removeAll()
+        end)
+        if not stat2 then
+            print("Couldn't clear glasses: "..err2)
+        end
     end
 
     if err then
@@ -426,10 +467,21 @@ threads.render = thread.create(function()
                 fill(1,1, width, 3, color.titlebar_bg)
                 write(3,2, "Tape Player", color.titlebar_text1, color.titlebar_bg)
 
+                if gl then
+                    local txt = "Link Glasses"
+                    local lw = write(width-#txt-1, 2, txt, color.dotted_1, color.titlebar_bg)
+                    addButton(width-#txt-1, 2, lw, 2, function(ev)
+                        local _, id, x, y, b, username = table.unpack(ev)
+                        component.computer.beep(800, 0.1)
+                        gl.startLinking(username)
+                    end)
+                end
+
                 local lw = write(3,5, "Scan Content", color.dotted_2)
                 addButton(3,5, lw, 5, function()
                     scanContent()
                     event.push("tp_render")
+                    event.push("tp_glassrender")
                 end)
                 local lw2 = write(lw+4, 5, "Autoscan: ", color.dotted_2)
                 local lw3 = write(lw2, 5, ((autoscan and "Enabled") or "Disabled"), color.dotted_1)
@@ -568,6 +620,7 @@ threads.render = thread.create(function()
                     end
                     tape.setSpeed(speed)
                     event.push("tp_render")
+                    event.push("tp_glassrender")
                 end)
 
                 local lw = write(2, height-3, "State: ", color.text1)
@@ -682,6 +735,159 @@ threads.render = thread.create(function()
         quit(err or "")
     end
 end)
+
+local glass_ready = false
+local gl_timebar_width = 175
+if gl then
+    threads.glass = thread.create(function()
+        local stat, err = pcall(function ()
+            while true do
+                local ev = event.pull()
+                if ev == "tp_glassrender" then
+                    if glass_ready then
+                        local content_time
+                        local tape_pos = tape.getPosition()
+
+                        if tape_info.has_info then
+                            widgets.timepos_1.modifiers()[mods.timepos_transl].set(-math.floor(gl_timebar_width/2)+((gl_timebar_width-1)*clamp(tape_pos/tape_info.content, 0, 1)), -65, 55)
+                            widgets.timebar_4.setSize(gl_timebar_width*clamp(tape_pos/tape_info.content, 0, 1), 3)
+                            content_time = secondsToDuration((tape_info.content/6000)/speed)
+                        else
+                            widgets.timepos_1.modifiers()[mods.timepos_transl].set(-math.floor(gl_timebar_width/2)+((gl_timebar_width-1)*clamp(tape_pos/tape_info.size, 0, 1)), -65, 55)
+                            widgets.timebar_4.setSize(gl_timebar_width*clamp(tape_pos/tape_info.size, 0, 1), 3)
+                            content_time = secondsToDuration((tape_info.size/6000)/speed)
+                        end
+
+                        local elapsed_time = secondsToDuration((tape_pos/6000)/speed)
+                        local time_string = ""..elapsed_time.." / "..content_time..""
+
+                        widgets.timetext1.setText(time_string)
+                        widgets.timetext2.setText(time_string)
+
+                        widgets.title1.setText(tape_info.label:gsub("§%w", ""))
+                        widgets.title2.setText(tape_info.label:gsub("§%w", ""))
+                    end
+                elseif ev == "tp_glassform" then
+                    glass_ready = false
+                    for k,widget in pairs(widgets) do
+                        local mods = widget.getModifiers()
+                        local id = widget.getID()
+                        if mods then
+                            for k,v in pairs(mods) do
+                                widget.removeModifier(v[1])
+                            end
+                        end
+                        widget.removeWidget()
+                    end
+                    gl.removeAll()
+                    local tape_pos = tape.getPosition()
+
+                    widgets.bg_1 = gl.addBox2D()
+                    widgets.bg_1.setSize(11, gl_timebar_width)
+                    widgets.bg_1.addColor(0.05,0.05,0.1,1)
+                    widgets.bg_1.addColor(0,0,0,0)
+                    widgets.bg_1.addAutoTranslation(50, 100)
+                    widgets.bg_1.addRotation(270, 0, 0, 1)
+                    widgets.bg_1.addTranslation(65, -math.floor(gl_timebar_width/2), 40)
+
+
+                    widgets.timebar_1 = gl.addBox2D()
+                    widgets.timebar_1.addAutoTranslation(50, 100)
+                    widgets.timebar_1.addTranslation(-math.floor(gl_timebar_width/2), -65, 50)
+                    widgets.timebar_1.setSize(gl_timebar_width, 3)
+                    widgets.timebar_1.addColor(0,0,0.1,1)
+                    widgets.timebar_1.addColor(0,0,0.1,1)
+
+                    widgets.timebar_2 = gl.addBox2D()
+                    widgets.timebar_2.addAutoTranslation(50, 100)
+                    widgets.timebar_2.addTranslation(-math.floor(gl_timebar_width/2), -66, 45)
+                    widgets.timebar_2.setSize(gl_timebar_width, 5)
+                    widgets.timebar_2.addColor(0.1,0.1,0.2,1)
+                    widgets.timebar_2.addColor(0.1,0.1,0.2,1)
+
+                    widgets.timebar_3 = gl.addBox2D()
+                    widgets.timebar_3.addAutoTranslation(50, 100)
+                    widgets.timebar_3.addTranslation(-math.floor(gl_timebar_width/2)-1, -65, 45)
+                    widgets.timebar_3.setSize(gl_timebar_width+2, 3)
+                    widgets.timebar_3.addColor(0.1,0.1,0.2,1)
+                    widgets.timebar_3.addColor(0.1,0.1,0.2,1)
+
+                    widgets.timepos_1 = gl.addBox2D()
+                    widgets.timepos_1.addAutoTranslation(50, 100)
+                    if tape_info.has_info then
+                        mods.timepos_transl = widgets.timepos_1.addTranslation(-math.floor(gl_timebar_width/2)+((gl_timebar_width-1)*clamp(tape_pos/tape_info.content, 0, 1)), -65, 55)
+                    else
+                        mods.timepos_transl = widgets.timepos_1.addTranslation(-math.floor(gl_timebar_width/2)+((gl_timebar_width-1)*clamp(tape_pos/tape_info.size, 0, 1)), -65, 55)
+                    end
+                    widgets.timepos_1.setSize(1, 3)
+                    widgets.timepos_1.addColor(1,1,1,1)
+                    widgets.timepos_1.addColor(1,1,1,1)
+
+                    widgets.timebar_4 = gl.addBox2D()
+                    widgets.timebar_4.addAutoTranslation(50, 100)
+                    widgets.timebar_4.addTranslation(-math.floor(gl_timebar_width/2), -65, 50)
+                    if tape_info.has_info then
+                        widgets.timebar_4.setSize(gl_timebar_width*clamp(tape_pos/tape_info.content, 0, 1), 3)
+                    else
+                        widgets.timebar_4.setSize(gl_timebar_width*clamp(tape_pos/tape_info.size, 0, 1), 3)
+                    end
+                    widgets.timebar_4.addColor(1,0,0.1,1)
+                    widgets.timebar_4.addColor(0,0,1.1,1)
+
+                    widgets.title1 = gl.addText2D()
+                    widgets.title1.addAutoTranslation(50, 100)
+                    widgets.title1.addTranslation(0, -82, 50)
+                    widgets.title1.addScale(0.8,0.8,1)
+                    widgets.title1.setHorizontalAlign("center")
+                    widgets.title1.addColor(0.25,0.75,1,1)
+                    widgets.title1.setText(tape_info.label:gsub("§%w", ""))
+
+                    widgets.title2 = gl.addText2D()
+                    widgets.title2.addAutoTranslation(50, 100)
+                    widgets.title2.addTranslation(0, -82, 45)
+                    widgets.title2.addTranslation(1, 1, 0)
+                    widgets.title2.addScale(0.8,0.8,1)
+                    widgets.title2.setHorizontalAlign("center")
+                    widgets.title2.addColor(0,0.125,0.25,1)
+                    widgets.title2.setText(tape_info.label:gsub("§%w", ""))
+
+                    local content_time
+
+                    if tape_info.has_info then
+                        content_time = secondsToDuration((tape_info.content/6000)/speed)
+                    else
+                        content_time = secondsToDuration((tape_info.size/6000)/speed)
+                    end
+
+                    local elapsed_time = secondsToDuration((tape_pos/6000)/speed)
+                    local time_string = ""..elapsed_time.." / "..content_time..""
+                    
+                    widgets.timetext1 = gl.addText2D()
+                    widgets.timetext1.addAutoTranslation(50, 100)
+                    widgets.timetext1.addTranslation(0, -74, 50)
+                    widgets.timetext1.addScale(0.75,0.75,1)
+                    widgets.timetext1.setHorizontalAlign("center")
+                    widgets.timetext1.addColor(0.375,0.375,0.75,1)
+                    widgets.timetext1.setText(time_string)
+
+                    widgets.timetext2 = gl.addText2D()
+                    widgets.timetext2.addAutoTranslation(50, 100)
+                    widgets.timetext2.addTranslation(0, -74, 45)
+                    widgets.timetext2.addTranslation(0.75, 0.75, 0)
+                    widgets.timetext2.addScale(0.75,0.75,1)
+                    widgets.timetext2.setHorizontalAlign("center")
+                    widgets.timetext2.addColor(0.0625,0.0625,0.125,1)
+                    widgets.timetext2.setText(time_string)
+
+                    glass_ready = true
+                end
+            end
+        end)
+        if not stat then    
+            quit(err or "")
+        end 
+    end)
+end
 
 if lb then
     threads.lightboard = thread.create(
@@ -880,6 +1086,7 @@ threads.tapewatcher = thread.create(
                 if redraw then
                     event.push("tp_render")
                     event.push("tp_lightboard")
+                    event.push("tp_glassrender")
                 end
                 os.sleep(0.5)
             end
@@ -988,6 +1195,7 @@ for k,v in pairs(threads) do
 end
 threads_only[#threads_only+1] = eventThread
 event.push("tp_render")
+event.push("tp_glassform")
 
 local stat, err = pcall(function ()
     thread.waitForAll(threads_only)
