@@ -4,6 +4,8 @@ local event = require("event")
 local thread = require("thread")
 local kb = require("keyboard")
 local internet = require("internet")
+local filesystem = require("filesystem")
+local sr = require("serialization")
 
 local screen = component.screen
 local gpu = component.gpu
@@ -244,6 +246,7 @@ local function quit(err)
     end
 end
 
+local render_mode = 0
 local logs = {}
 local function log(text, fg, bg)
     table.insert(logs, 1, {
@@ -251,6 +254,9 @@ local function log(text, fg, bg)
         fg = fg,
         bg = bg
     })
+    if render_mode ~= 1 then
+        write(1, height, text, fg, bg, true)
+    end
     if #logs > 64 then
         table.remove(logs, #logs)
     end
@@ -259,8 +265,15 @@ end
 local downloading = false
 local curr_dl = 0
 local url_list = {}
+if filesystem.exists("/home/.tmdl.save") then
+    local file_io = io.open("/home/.tmdl.save", "r")
+    if file_io then
+        url_list = sr.unserialize(file_io:read("*a"))
+        file_io:close()
+    end
+end
+
 local scroll = 0
-local render_mode = 0
 
 threads.render = thread.create(function() 
     local stat, err = pcall(function ()
@@ -300,7 +313,7 @@ threads.render = thread.create(function()
 
             if render_mode == 0 then
                 local x_offset = #tostring(#url_list)+2
-                for i1=1, height-5 do
+                for i1=1, height-6 do
                     local url_pos = i1+scroll
                     local url_data = url_list[url_pos]
                     local write_y = 4+i1
@@ -315,6 +328,11 @@ threads.render = thread.create(function()
                                     local _, _, x, y, b = table.unpack(ev)
                                     if b == 1 then
                                         table.remove(url_list, url_pos)
+                                        local file_io = io.open("/home/.tmdl.save", "w")
+                                        if file_io then
+                                            file_io:write(sr.serialize(url_list))
+                                            file_io:close()
+                                        end
                                         component.computer.beep(100, 0.1)
                                         event.push("tmdl_render")
                                     end
@@ -324,9 +342,9 @@ threads.render = thread.create(function()
                     end
                 end
 
-                write(3, height, "Paste a Youtube URL to add it", color.dotted_1)
+                write(3, height-1, "Paste a Youtube URL to add it", color.dotted_1)
             else
-                write(3, height, "Viewing download logs", color.dotted_1)
+                write(3, height-1, "Viewing download logs", color.dotted_1)
             end
 
             gpu.bitblt(0, 1,1, width, height, drawBuffer, 1, 1)
@@ -398,10 +416,18 @@ threads.downloader = thread.create(function()
                                 tape.write(string.rep(string.char(0), tape_size))
                                 tape.seek(-tape_size)
 
+                                local wrote = 0
                                 log("Writing to cassette", color.text1)
                                 for chunk in req do
                                     tape.write(chunk)
+                                    wrote = wrote + #chunk
+                                    local perc = wrote/file_size
+                                    local lw = write(2, height, string.rep("█", math.floor((width-2)*(perc))), color.state_warn)
+                                    local decimal = (width-2)*(perc) - math.floor((width-2)*(perc))
+                                    write(lw, height, getDlFooter(decimal), color.state_warn)
                                 end
+
+                                fill(1, height, width, height, color.black, color.black)
 
                                 tape.seek(-tape_size)
                                 log("Labelling cassette", color.text1)
@@ -529,6 +555,11 @@ local eventThread = thread.create(function ()
                                 youtube_id = youtube_id,
                                 label = txt
                             }
+                            local file_io = io.open("/home/.tmdl.save", "w")
+                            if file_io then
+                                file_io:write(sr.serialize(url_list))
+                                file_io:close()
+                            end
                             event.push("tmdl_render")
                         end,
                         cancel_func=function(txt)
