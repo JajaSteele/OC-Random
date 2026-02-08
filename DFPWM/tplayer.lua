@@ -98,15 +98,25 @@ local tape_display_list = {}
 local function sortTapeList(useIDs)
     if useIDs then
         table.sort(tape_display_list, function(a,b)
+            print(a.id,b.id)
             return a.id < b.id
         end)
     else
         table.sort(tape_display_list, function(a,b)
             if a.data.album and not b.data.album then
+                print("Sorted from having album")
                 return true
+            elseif not a.data.album and b.data.album then
+                print("Sorted from NOT having album")
+                return false
             elseif a.data.artist and not b.data.artist then
+                print("Sorted from having artist")
                 return true
+            elseif not a.data.artist and b.data.artist then
+                print("Sorted from NOT having artist")
+                return false
             else
+                print(a.data.label, b.data.label)
                 return a.data.label < b.data.label
             end
         end)
