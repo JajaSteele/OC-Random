@@ -117,7 +117,7 @@ local function sortTapeList(useIDs)
                 return false
             else
                 --print(a.data.label, b.data.label)
-                return a.data.label < b.data.label
+                return a.data.label:lower() < b.data.label:lower()
             end
         end)
     end
