@@ -1188,7 +1188,7 @@ local eventThread = thread.create(function ()
                 end
             elseif ev[1] == "scroll" then
                 if render_mode == 1 then
-                    scroll = clamp(scroll-ev[5], 0, #tape_list)
+                    scroll = clamp(scroll-(ev[5]*3), 0, #tape_list)
                     event.push("tp_render")
                 end
             end
