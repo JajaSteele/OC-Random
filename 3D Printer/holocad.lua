@@ -142,17 +142,92 @@ local function fill(x,y, x2,y2, bg, fg, char)
     gpu.setBackground(old_bg)
 end
 
+local box_chars = {
+    simple={
+        "─",
+        "─",
+        "│",
+        "│",
+        "┌",
+        "┐",
+        "└",
+        "┘",
+    },
+    debug={
+        "│",
+        "│",
+        "─",
+        "─",
+        "1",
+        "2",
+        "3",
+        "4",
+    },
+    cad1={
+        "▀",
+        "▄",
+        "▌",
+        "▐",
+        "▛",
+        "▜",
+        "▙",
+        "▟",
+    },
+    cad2={
+        "▘",
+        "▗",
+        "▖",
+        "▝",
+        "▛",
+        "▜",
+        "▙",
+        "▟",
+    },
+}
+
+local function drawFancyBox(x,y, x2,y2, bg, fg, charset)
+    local old_fg = gpu.getForeground()
+    local old_bg = gpu.getBackground()
+
+    if fg then
+        gpu.setForeground(fg)
+    end
+    if bg then
+        gpu.setBackground(bg)
+    end
+
+    local hor,hor2,ver,ver2,tl,tr,bl,br = table.unpack(charset or {})
+
+    gpu.fill(x,y, (x2-x)+1, 1, hor or "─")
+    gpu.fill(x,y2, (x2-x)+1, 1, hor2 or "─")
+
+    gpu.fill(x,y, 1, (y2-y)+1, ver or "│")
+    gpu.fill(x2, y, 1, (y2-y)+1, ver2 or "│")
+
+    gpu.set(x,y, tl or "┌")
+    gpu.set(x2,y, tr or "┐")
+
+    gpu.set(x,y2, bl or "└")
+    gpu.set(x2,y2, br or "┘")
+
+    gpu.setForeground(old_fg)
+    gpu.setBackground(old_bg)
+end
+
 local color = {
     titlebar_bg=0x222222,
     titlebar_text1 = 0xCCCCCC,
     cubes_text1 = 0xAAAAAA,
     dotted_1 = 0x595959,
     dotted_2 = 0x424242,
-    cube_selected = 0xFFFFFF,
+    dotted_3 = 0x222222,
+    white = 0xFFFFFF,
     black = 0x000000,
     state_off = 0xFF5555,
     state_on = 0x66FF55,
     state_warn = 0xFFBB55,
+    point_1 = 0x33a7f0,
+    point_2 = 0xed2ca6
 }
 
 local width, height = gpu.getResolution()
@@ -301,6 +376,9 @@ local function quit(err)
     end
 end
 
+local edit_mode = 0
+local edit_side = 0
+
 local eventThread = thread.create(function ()
     local stat, err = pcall(function ()
         while true do
@@ -310,10 +388,10 @@ local eventThread = thread.create(function ()
                 break
             elseif ev[1] == "touch" then
                 local _, _, x, y, b = table.unpack(ev)
-                DEBUG("touch coords",x,y)
+                --DEBUG("touch coords",x,y)
 
                 for k, button in pairs(buttons) do
-                    DEBUG("button coords",button.coords.x1, button.coords.y1, button.coords.x2, button.coords.y2)
+                    --DEBUG("button coords",button.coords.x1, button.coords.y1, button.coords.x2, button.coords.y2)
                     if x >= button.coords.x1 and y >= button.coords.y1 then
                         if x <= button.coords.x2 and y <= button.coords.y2 then
                             local func = button.func
@@ -343,10 +421,10 @@ local eventThread = thread.create(function ()
                                     local char = string.char(char_code):match(textbox.pattern_filter)
 
                                     if char and #current_input < textbox.max_length then
-                                        DEBUG("char", char)
+                                        --DEBUG("char", char)
                                         current_input = current_input..char
                                     else
-                                        DEBUG("key", key_code)
+                                        --DEBUG("key", key_code)
                                         if key_code == kb.keys.back then
                                             current_input = current_input:sub(1,-2)
                                         elseif key_code == kb.keys.enter then
@@ -365,7 +443,7 @@ local eventThread = thread.create(function ()
                                 elseif ev[1] == "clipboard" then
                                     for char in ev[3]:gmatch(textbox.pattern_filter) do
                                         if #current_input < textbox.max_length then
-                                            DEBUG("char", char)
+                                            --DEBUG("char", char)
                                             current_input = current_input..char
                                         else
                                             break
@@ -423,7 +501,7 @@ local eventThread = thread.create(function ()
                 local _, _, user, x, y, b = table.unpack(ev)
 
                 for k, button in pairs(glass_buttons) do
-                    DEBUG("button coords",button.coords.x1, button.coords.y1, button.coords.x2, button.coords.y2)
+                    --DEBUG("button coords",button.coords.x1, button.coords.y1, button.coords.x2, button.coords.y2)
                     if x >= button.coords.x1 and y >= button.coords.y1 then
                         if x <= button.coords.x2 and y <= button.coords.y2 then
                             local highlight1 = button.widgets.text.addColor(0.5,1,1, 1)
@@ -470,11 +548,11 @@ threads.render = thread.create(function ()
             end)
 
             local lw = write(17, height-3, "Light Level: ", color.cubes_text1, color.black)
-            local lw2 = write(lw, height-3, tostring(object_data.light_level), color.cube_selected, color.black)
+            local lw2 = write(lw, height-3, tostring(object_data.light_level), color.white, color.black)
             addTextBox(lw,height-3,lw2-1,height-3, tostring(object_data.light_level),2,"[%d]", 
                 function()
-                    fill(lw, height-3, lw2, height-3, color.cube_selected)
-                    write(lw, height-3, tostring(object_data.light_level), color.cube_selected, color.black)
+                    fill(lw, height-3, lw2, height-3, color.white)
+                    write(lw, height-3, tostring(object_data.light_level), color.white, color.black)
                 end, 
                 function(input) 
                     object_data.light_level = clamp(tonumber(input) or 0, 0, 15)
@@ -483,14 +561,14 @@ threads.render = thread.create(function ()
                 function()
                     event.push("hc_render")
                 end, 
-                color.cube_selected, color.black)
+                color.white, color.black)
 
             local lw = write(width-6, 3, "x", color.dotted_2, color.titlebar_bg)
             local lw2 = write(lw, 3, tostring(print_count), color.dotted_1, color.titlebar_bg)
             addTextBox(lw,3,lw2-1,3, tostring(print_count),3,"[%d]", 
                 function()
-                    fill(lw, 3, lw2, 3, color.cube_selected)
-                    write(lw, 3, tostring(print_count), color.cube_selected, color.titlebar_bg)
+                    fill(lw, 3, lw2, 3, color.white)
+                    write(lw, 3, tostring(print_count), color.white, color.titlebar_bg)
                 end, 
                 function(input) 
                     print_count = clamp(tonumber(input) or 1, 1, 999)
@@ -499,14 +577,14 @@ threads.render = thread.create(function ()
                 function()
                     event.push("hc_render")
                 end, 
-                color.cube_selected, color.titlebar_bg)
+                color.white, color.titlebar_bg)
 
             local lw = write(17, height-2, "Redstone Level: ", color.cubes_text1, color.black)
-            local lw2 = write(lw, height-2, tostring(object_data.redstone_level), color.cube_selected, color.black)
+            local lw2 = write(lw, height-2, tostring(object_data.redstone_level), color.white, color.black)
             addTextBox(lw,height-2,lw2-1,height-2, tostring(object_data.redstone_level),2,"[%d]", 
                 function()
-                    fill(lw, height-2, lw2, height-2, color.cube_selected)
-                    write(lw, height-2, tostring(object_data.redstone_level), color.cube_selected, color.black)
+                    fill(lw, height-2, lw2, height-2, color.white)
+                    write(lw, height-2, tostring(object_data.redstone_level), color.white, color.black)
                 end, 
                 function(input) 
                     object_data.redstone_level = clamp(tonumber(input) or 0, 0, 15)
@@ -515,7 +593,7 @@ threads.render = thread.create(function ()
                 function()
                     event.push("hc_render")
                 end, 
-                color.cube_selected, color.black)
+                color.white, color.black)
 
             fill(36, height-4, 36, height-2, color.black, color.dotted_2, "┊")
 
@@ -569,7 +647,7 @@ threads.render = thread.create(function ()
             end)
 
             local export_text = "[Export to Printer]"
-            write(width-27,2, export_text, color.cube_selected, color.titlebar_bg)
+            write(width-27,2, export_text, color.white, color.titlebar_bg)
             addButton(width-27,2,width-9,2,function()
                 asyncBeep(500,0.1)
                 printer.reset()
@@ -750,7 +828,7 @@ threads.render = thread.create(function ()
             local lw = write(17,2,"Filename: [", color.titlebar_text1, color.titlebar_bg)
             local lw2
             if file_name and #file_name > 0 then
-                lw2 = write(lw, 2, file_name, color.cube_selected, color.titlebar_bg)
+                lw2 = write(lw, 2, file_name, color.white, color.titlebar_bg)
             else
                 lw2 = write(lw, 2, "No Name", color.state_off, color.titlebar_bg)
             end
@@ -758,7 +836,7 @@ threads.render = thread.create(function ()
             addTextBox(lw,2,lw2-1,2,file_name or "",64,"[%w_]", 
                 function()
                     fill(lw-1, 2, lw2, 2, color.titlebar_bg)
-                    write(lw,2,file_name or "",color.cube_selected, color.titlebar_bg)
+                    write(lw,2,file_name or "",color.white, color.titlebar_bg)
                 end, 
                 function(input) 
                     file_name = input
@@ -768,7 +846,7 @@ threads.render = thread.create(function ()
                 function()
                     event.push("hc_render")
                 end, 
-                color.cube_selected, color.titlebar_bg)
+                color.white, color.titlebar_bg)
 
             local masscopy_text = "[Copy to "..((show_state == "Off" and "On") or "Off").."]"
             write(2,height-2, masscopy_text, color.state_on, color.black)
@@ -838,7 +916,61 @@ threads.render = thread.create(function ()
                 shapes = object_data.shapes.on
             end
 
-            holo.setTranslation(1/3, 0.75, 0)
+            local lw = write(16, height-6, "[Switch Mode]", color.dotted_1)
+            addButton(16, height-6, lw, height-6, function()
+                edit_mode = (edit_mode + 1)%2
+                asyncBeep(800,0.05)
+                event.push("hc_render")
+            end)
+            if edit_mode == 1 then
+                drawFancyBox(17, 7, 17+65, 7+33, color.black, color.white, box_chars.simple)
+
+                local lw = write(17, 7+33+1, "[Front]", ((edit_side == 0 and color.state_on) or color.state_warn))
+                addButton(17, 7+33+1, lw, 7+33+1, function()
+                    edit_side = 0
+                    asyncBeep(1100,0.025)
+                    event.push("hc_render")
+                end)
+
+                local lw2 = write(lw+1, 7+33+1, "[Top]", ((edit_side == 1 and color.state_on) or color.state_warn))
+                addButton(lw+1, 7+33+1, lw2, 7+33+1, function()
+                    edit_side = 1
+                    asyncBeep(1100,0.025)
+                    event.push("hc_render")
+                end)
+
+                local lw3 = write(lw2+1, 7+33+1, "[Side]", ((edit_side == 2 and color.state_on) or color.state_warn))
+                addButton(lw2+1, 7+33+1, lw3, 7+33+1, function()
+                    edit_side = 2
+                    asyncBeep(1100,0.025)
+                    event.push("hc_render")
+                end)
+
+                for i1=1, 32 do
+                    if (i1-1)%4 > 1 then
+                        write(18, 7+i1, string.rep("░░░░    ", 8), color.dotted_3, color.black)
+                    else
+                        write(18, 7+i1, string.rep("    ░░░░", 8), color.dotted_3, color.black)
+                    end
+                end
+
+                local lw, ly = write(17+64+5, 8, "L-Click: ", color.cubes_text1)
+                write(lw, ly, "Set Point 1", color.white)
+                local lw, ly = write(17+64+5, 9, "R-Click: ", color.cubes_text1)
+                write(lw, ly, "Set Point 2", color.white)
+
+                lw, ly = write(17+64+5, 11, "Point 1 ", color.point_1)
+                lw, ly = write(lw,ly, "will always be the ", color.cubes_text1)
+                lw, ly = write(lw,ly, "bottom-left corner ", color.state_warn)
+                lw, ly = write(lw,ly, "of the shape", color.cubes_text1)
+
+                lw, ly = write(17+64+5, ly+2, "Similarly, ", color.cubes_text1)
+                lw, ly = write(lw, ly, "Point 2 ", color.point_2)
+                lw, ly = write(lw,ly, "will always be the ", color.cubes_text1)
+                lw, ly = write(lw,ly, "top-right corner ", color.state_warn)
+            end
+
+            holo.setTranslation(0, 0.75, 0)
             holo.clear()
             local lx, ly = 2, 7
             for k, shape in pairs(shapes) do
@@ -861,15 +993,15 @@ threads.render = thread.create(function ()
                 end
                 local x1, y1, z1, x2, y2, z2 = table.unpack(shape.coords)
                 if selected_cube == k then
-                    x,y = write(lx+1,ly, text, color.cube_selected, color.black)
+                    x,y = write(lx+1,ly, text, color.white, color.black)
                     addButton(lx,ly, lx+#text-1,ly,func)
 
                     local lw = write(17, 5, "Texture: [", color.cubes_text1, color.black)
-                    local lw2 = write(lw, 5, (#shape.texture > 0 and shape.texture) or "None", color.cube_selected, color.black)
-                    addTextBox(lw,5,lw2,5,shape.texture,256,"[%w/_:%-]", 
+                    local lw2 = write(lw, 5, (#shape.texture > 0 and shape.texture) or "None", color.white, color.black)
+                    addTextBox(lw,5,lw2,5,shape.texture,256,"[%w/_:%-%.]", 
                     function()
                         fill(lw-1, 5, lw2, 5, color.black)
-                        write(lw,5,shape.texture,color.cube_selected, color.black)
+                        write(lw,5,shape.texture,color.white, color.black)
                     end, 
                     function(input) 
                         shape.texture = input 
@@ -878,11 +1010,11 @@ threads.render = thread.create(function ()
                     function()
                         event.push("hc_render")
                     end, 
-                    color.cube_selected, color.black)
+                    color.white, color.black)
                     lw2 = write(lw2, 5, "]", color.cubes_text1, color.black)
 
                     local dupe_text = "[Duplicate Cube]"
-                    write(16,height, dupe_text, color.cube_selected, color.black)
+                    write(16,height, dupe_text, color.white, color.black)
                     addButton(16,height,16+#dupe_text,height,function()
                         shapes[#shapes+1] = {
                             texture=shape.texture,
@@ -893,25 +1025,37 @@ threads.render = thread.create(function ()
                         event.push("hc_drawglass")
                     end)
 
-                    local cancel_func = function() event.push("hc_render") end
+                    if edit_mode == 0 then
+                        local cancel_func = function() event.push("hc_render") end
 
-                    write(17,6, "Coords:", color.cubes_text1, color.black)
-                    write(19,7, "Min:", color.cubes_text1, color.black)
-                    write(21,8, "X "..x1, color.cube_selected, color.black)
-                    addTextBox(23,8,23+1,8, tostring(x1), 2, "%d", nil, function(input) shape.coords[1] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.cube_selected, color.black)
-                    write(21,9, "Y "..y1, color.cube_selected, color.black)
-                    addTextBox(23,9,23+1,9, tostring(y1), 2, "%d", nil, function(input) shape.coords[2] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.cube_selected, color.black)
-                    write(21,10, "Z "..z1, color.cube_selected, color.black)
-                    addTextBox(23,10,23+1,10, tostring(z1), 2, "%d", nil, function(input) shape.coords[3] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.cube_selected, color.black)
+                        write(17,6, "Coords:", color.cubes_text1, color.black)
+                        write(19,7, "Min:", color.cubes_text1, color.black)
+                        write(21,8, "X "..x1, color.white, color.black)
+                        addTextBox(23,8,23+1,8, tostring(x1), 2, "%d", nil, function(input) shape.coords[1] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.white, color.black)
+                        write(21,9, "Y "..y1, color.white, color.black)
+                        addTextBox(23,9,23+1,9, tostring(y1), 2, "%d", nil, function(input) shape.coords[2] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.white, color.black)
+                        write(21,10, "Z "..z1, color.white, color.black)
+                        addTextBox(23,10,23+1,10, tostring(z1), 2, "%d", nil, function(input) shape.coords[3] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.white, color.black)
 
-                    write(19,11, "Max:", color.cubes_text1, color.black)
-                    write(21,12, "X "..x2, (x1 >= x2 and color.state_off) or color.cube_selected, color.black)
-                    addTextBox(23,12,23+1,12, tostring(x2), 2, "%d", nil, function(input) shape.coords[4] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.cube_selected, color.black)
-                    write(21,13, "Y "..y2, (y1 >= y2 and color.state_off) or color.cube_selected, color.black)
-                    addTextBox(23,13,23+1,13, tostring(y2), 2, "%d", nil, function(input) shape.coords[5] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.cube_selected, color.black)
-                    write(21,14, "Z "..z2, (z1 >= z2 and color.state_off) or color.cube_selected, color.black)
-                    addTextBox(23,14,23+1,14, tostring(z2), 2, "%d", nil, function(input) shape.coords[6] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.cube_selected, color.black)
+                        write(19,11, "Max:", color.cubes_text1, color.black)
+                        write(21,12, "X "..x2, (x1 >= x2 and color.state_off) or color.white, color.black)
+                        addTextBox(23,12,23+1,12, tostring(x2), 2, "%d", nil, function(input) shape.coords[4] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.white, color.black)
+                        write(21,13, "Y "..y2, (y1 >= y2 and color.state_off) or color.white, color.black)
+                        addTextBox(23,13,23+1,13, tostring(y2), 2, "%d", nil, function(input) shape.coords[5] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.white, color.black)
+                        write(21,14, "Z "..z2, (z1 >= z2 and color.state_off) or color.white, color.black)
+                        addTextBox(23,14,23+1,14, tostring(z2), 2, "%d", nil, function(input) shape.coords[6] = clamp(tonumber(input) or 0, 0, 16) event.push("hc_render") event.push("hc_drawglass") end, cancel_func, color.white, color.black)
+                    end
                 else
+                    if edit_mode == 1 then
+                        local basex, basey = 18, 8
+                        if edit_side == 0 then
+                            drawFancyBox(basex+(x1*4), (basey+31)-((y2*2)-1), basex+((x2*4)-1), (basey+31)-(y1*2), color.black, color.dotted_1, box_chars.cad2)
+                        elseif edit_side == 1 then
+                            drawFancyBox(basex+(x1*4), (basey+31)-((z2*2)-1), basex+((x2*4)-1), (basey+31)-(z1*2), color.black, color.dotted_1, box_chars.cad2)
+                        elseif edit_side == 2 then
+                            drawFancyBox(basex+(((z1)*4)), (basey+31)-((y2*2)-1), basex+((z2)*4)-1, (basey+31)-(y1*2), color.black, color.dotted_1, box_chars.cad2)
+                        end
+                    end
                     x,y = write(lx,ly, text, color.cubes_text1, color.black)
                     addButton(lx,ly, lx+#text-1,ly,func)
                 end
@@ -929,6 +1073,145 @@ threads.render = thread.create(function ()
                 if ly >= (height-3)-6 then
                     break
                 end
+            end
+
+            if edit_mode == 1 then
+                local selected = shapes[selected_cube]
+                if selected then
+                    local x1, y1, z1, x2, y2, z2 = table.unpack(selected.coords)
+                    local basex, basey = 18, 8
+                    if edit_side == 0 then
+                        local x1,y1, x2,y2 = basex+(x1*4), (basey+31)-((y2*2)-1), basex+((x2*4)-1), (basey+31)-(y1*2)
+                        drawFancyBox(x1,y1, x2,y2, color.black, color.state_on, box_chars.cad1)
+                        write(x1,y2, "🭌", color.point_1, color.black) -- Bottom Left
+                        write(x2,y1, "🭒", color.point_2, color.black) -- Top Right
+                    elseif edit_side == 1 then
+                        local x1,y1, x2,y2 = basex+(x1*4), (basey+31)-((z2*2)-1), basex+((x2*4)-1), (basey+31)-(z1*2)
+                        drawFancyBox(x1,y1, x2,y2, color.black, color.state_on, box_chars.cad1)
+                        write(x1,y2, "🭌", color.point_1, color.black) -- Bottom Left
+                        write(x2,y1, "🭒", color.point_2, color.black) -- Top Right
+                    elseif edit_side == 2 then
+                        local x1,y1, x2,y2 = basex+(((z1)*4)), (basey+31)-((y2*2)-1), basex+((z2)*4)-1, (basey+31)-(y1*2)
+                        drawFancyBox(x1,y1, x2,y2, color.black, color.state_on, box_chars.cad1)
+                        write(x1,y2, "🭌", color.point_1, color.black) -- Bottom Left
+                        write(x2,y1, "🭒", color.point_2, color.black) -- Top Right
+                    end 
+                end
+
+                addButton(18, 8, 18+63, 8+31, function(ev)
+                    asyncBeep(1800, 0.025)
+                    local _, _, x, y, b = table.unpack(ev)
+                    local rx, ry = ((x-17)/4), ((y-7)/2)
+                    
+                    if selected then
+                        local x1, y1, z1, x2, y2, z2 = table.unpack(selected.coords)
+                        if edit_side == 0 then
+                            if b == 0 then
+                                local new_x1 = clamp((math.ceil(rx)-1), 0, 16)
+                                local new_y1 = clamp(16-(math.ceil(ry)), 0, 16)
+
+                                if new_x1 >= x2 then
+                                    selected.coords[4] = new_x1+1
+                                    selected.coords[1] = new_x1
+                                else
+                                    selected.coords[1] = new_x1
+                                end
+                                if new_y1 >= y2 then    
+                                    selected.coords[5] = new_y1+1
+                                    selected.coords[2] = new_y1
+                                else
+                                    selected.coords[2] = new_y1
+                                end
+                            elseif b == 1 then
+                                local new_x2 = clamp((math.ceil(rx)), 0, 16)
+                                local new_y2 = clamp(16-(math.ceil(ry)-1), 0, 16)
+
+                                if new_x2 <= x1 then
+                                    selected.coords[4] = new_x2
+                                    selected.coords[1] = new_x2-1
+                                else
+                                    selected.coords[4] = new_x2
+                                end
+                                if new_y2 <= y1 then
+                                    selected.coords[5] = new_y2
+                                    selected.coords[2] = new_y2-1
+                                else
+                                    selected.coords[5] = new_y2
+                                end
+                            end
+                        elseif edit_side == 1 then
+                            if b == 0 then
+                                local new_x1 = clamp((math.ceil(rx)-1), 0, 16)
+                                local new_z1 = clamp(16-(math.ceil(ry)), 0, 16)
+
+                                if new_x1 >= x2 then
+                                    selected.coords[4] = new_x1+1
+                                    selected.coords[1] = new_x1
+                                else
+                                    selected.coords[1] = new_x1
+                                end
+                                if new_z1 >= z2 then    
+                                    selected.coords[6] = new_z1+1
+                                    selected.coords[3] = new_z1
+                                else
+                                    selected.coords[3] = new_z1
+                                end
+                            elseif b == 1 then
+                                local new_x2 = clamp((math.ceil(rx)), 0, 16)
+                                local new_z2 = clamp(16-(math.ceil(ry)-1), 0, 16)
+
+                                if new_x2 <= x1 then
+                                    selected.coords[4] = new_x2
+                                    selected.coords[1] = new_x2-1
+                                else
+                                    selected.coords[4] = new_x2
+                                end
+                                if new_z2 <= z1 then
+                                    selected.coords[6] = new_z2
+                                    selected.coords[3] = new_z2-1
+                                else
+                                    selected.coords[6] = new_z2
+                                end
+                            end
+                        elseif edit_side == 2 then
+                            if b == 0 then
+                                local new_z1 = clamp((math.ceil(rx)-1), 0, 16)
+                                local new_y1 = clamp(16-(math.ceil(ry)), 0, 16)
+
+                                if new_z1 >= z2 then
+                                    selected.coords[6] = new_z1+1
+                                    selected.coords[3] = new_z1
+                                else
+                                    selected.coords[3] = new_z1
+                                end
+                                if new_y1 >= y2 then    
+                                    selected.coords[5] = new_y1+1
+                                    selected.coords[2] = new_y1
+                                else
+                                    selected.coords[2] = new_y1
+                                end
+                            elseif b == 1 then
+                                local new_z2 = clamp((math.ceil(rx)), 0, 16)
+                                local new_y2 = clamp(16-(math.ceil(ry)-1), 0, 16)
+
+                                if new_z2 <= z1 then
+                                    selected.coords[6] = new_z2
+                                    selected.coords[3] = new_z2-1
+                                else
+                                    selected.coords[6] = new_z2
+                                end
+                                if new_y2 <= y1 then
+                                    selected.coords[5] = new_y2
+                                    selected.coords[2] = new_y2-1
+                                else
+                                    selected.coords[5] = new_y2
+                                end
+                            end
+                        end
+                        event.push("hc_render")
+                        event.push("hc_drawglass")
+                    end
+                end)
             end
 
             gpu.bitblt(0, 1,1, width, height, drawBuffer, 1, 1)
