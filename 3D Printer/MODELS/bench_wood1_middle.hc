@@ -1,0 +1,1 @@
+{redstone_level=0,button_mode=false,shapes={on={},off={{coords={0,6,3,16,8,13},texture="chisel:blocks/planks-oak/vertical-uneven"}}},light_level=0,noclip={on=false,off=false}}

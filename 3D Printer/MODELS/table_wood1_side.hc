@@ -1,0 +1,1 @@
+{redstone_level=0,button_mode=false,shapes={on={},off={{coords={0,14,1,16,16,16},texture="chisel:blocks/planks-oak/vertical"},{coords={0,14,0,16,16,1},texture="minecraft:blocks/log_oak"}}},light_level=0,noclip={on=false,off=false}}
