@@ -314,9 +314,10 @@ local function quit(err)
         end)
     end
 
+    gpu.setActiveBuffer(0)
     if first_exit then
-        print("Clearing and exiting GPU buffer")
-        gpu.setActiveBuffer(0)
+        DEBUG("Clearing and releasing GPU Buffer")
+        print("Clearing and releasing GPU Buffer")
         gpu.freeBuffer(drawBuffer)
         term.clear()
         first_exit = false
@@ -461,7 +462,7 @@ local function changeTape(playlist_pos)
 end
 
 threads.render = thread.create(function() 
-    local stat, err = pcall(function ()
+    local stat, err = xpcall(function ()
         while true do
             event.pull("tp_render")
 
@@ -545,12 +546,14 @@ threads.render = thread.create(function()
                         write(lw+3, 10, "Rescan", color.state_warn)
                         scanTapes(false)
                         event.push("tp_render")
+                        --DEBUG([[Rescan]])
                     end)
                     local lw3 = write(lw2+3, 10, "Switch Tape", color.dotted_2)
                     addButton(lw2+3, 10, lw3, 10, function()
                         render_mode = 1
                         scroll = 0
                         event.push("tp_render")
+                        --DEBUG([[Switch Tape]])
                     end)
 
                     local lw = write(3, 11, "Playlist Mode: ", color.dotted_2)
@@ -638,12 +641,12 @@ threads.render = thread.create(function()
 
                 -- Seek bar
                 
-                if tape.isReady() then
+                if tape.isReady() and tape_info.size > 0 then
                     fill(2, height-2, width-1, height-2, color.black, color.tape_empty, "━")
                     if tape_info.has_info then
                         fill(2, height-2, math.floor(1+((width-2)*(tape_info.content/tape_info.size))), height-2, color.black, color.tape_content, "━")
                     end
-                    write(clamp(1+((width-2)*(tape_pos/tape_info.size)), 2, width-1), height-2, "|", color.titlebar_text1)
+                    write(clamp(math.floor((1+((width-2)*(tape_pos/tape_info.size)))), 2, width-1), height-2, "|", color.titlebar_text1)
                 else
                     fill(2, height-2, width-1, height-2, color.black, color.dotted_2, "┉")
                 end
@@ -740,8 +743,11 @@ threads.render = thread.create(function()
             gpu.bitblt(0, 1,1, width, height, drawBuffer, 1, 1)
             gpu.setActiveBuffer(0)
         end
-    end)
+        DEBUG("Rendering loop ended")
+    end, debug.traceback)
+    DEBUG("Rendering Thread Terminated: "..(err or "No Error"))
     if not stat then
+        DEBUG("Render Crashed!")
         quit(err or "")
     end
 end)
@@ -750,7 +756,7 @@ local glass_ready = false
 local gl_timebar_width = 175
 if gl then
     threads.glass = thread.create(function()
-        local stat, err = pcall(function ()
+        local stat, err = xpcall(function ()
             while true do
                 local ev = event.pull()
                 if ev == "tp_glassrender" then
@@ -892,8 +898,10 @@ if gl then
                     glass_ready = true
                 end
             end
-        end)
+        end, debug.traceback)
+        DEBUG("Glasses Thread Terminated: "..(err or "No Error"))
         if not stat then    
+            DEBUG("Glasses Crashed!")
             quit(err or "")
         end 
     end)
@@ -902,7 +910,7 @@ end
 if lb then
     threads.lightboard = thread.create(
         function ()
-            local stat, err = pcall(function ()
+            local stat, err = xpcall(function ()
                 while true do
                     event.pull("tp_lightboard")
                     if lb_active then
@@ -983,8 +991,10 @@ if lb then
                         end
                     end
                 end
-            end)
+            end, debug.traceback)
+            DEBUG("Lightboard Thread Terminated: "..(err or "No Error"))
             if not stat then
+                DEBUG("Lightboard Crashed!")
                 quit(err or "")
             end
         end
@@ -993,7 +1003,7 @@ end
 
 threads.tapewatcher = thread.create(
     function ()
-        local stat, err = pcall(function ()
+        local stat, err = xpcall(function ()
             local old_state = ""
             local old_pos = 0
             while true do
@@ -1100,15 +1110,17 @@ threads.tapewatcher = thread.create(
                 end
                 os.sleep(0.5)
             end
-        end)
+        end, debug.traceback)
+        DEBUG("Tape-Watcher Thread Terminated: "..(err or "No Error"))
         if not stat then
+            DEBUG("Tape-Watcher Crashed!")
             quit(err or "")
         end
     end
 )
 
 local eventThread = thread.create(function ()
-    local stat, err = pcall(function ()
+    local stat, err = xpcall(function ()
         while true do
             local ev = {event.pull()}
             if ev[1] == "interrupted" then
@@ -1116,10 +1128,8 @@ local eventThread = thread.create(function ()
                 break
             elseif ev[1] == "touch" then
                 local _, _, x, y, b = table.unpack(ev)
-                DEBUG("touch coords",x,y)
 
                 for k, button in pairs(buttons) do
-                    DEBUG("button coords",button.coords.x1, button.coords.y1, button.coords.x2, button.coords.y2)
                     if x >= button.coords.x1 and y >= button.coords.y1 then
                         if x <= button.coords.x2 and y <= button.coords.y2 then
                             local func = button.func
@@ -1149,10 +1159,8 @@ local eventThread = thread.create(function ()
                                     local char = string.char(char_code):match(textbox.pattern_filter)
 
                                     if char and #current_input < textbox.max_length then
-                                        DEBUG("char", char)
                                         current_input = current_input..char
                                     else
-                                        DEBUG("key", key_code)
                                         if key_code == kb.keys.back then
                                             current_input = current_input:sub(1,-2)
                                         elseif key_code == kb.keys.enter then
@@ -1171,7 +1179,6 @@ local eventThread = thread.create(function ()
                                 elseif ev[1] == "clipboard" then
                                     for char in ev[3]:gmatch(textbox.pattern_filter) do
                                         if #current_input < textbox.max_length then
-                                            DEBUG("char", char)
                                             current_input = current_input..char
                                         else
                                             break
@@ -1193,8 +1200,10 @@ local eventThread = thread.create(function ()
                 end
             end
         end
-    end)
+    end, debug.traceback)
+    DEBUG("Event Thread Terminated: "..(err or "No Error"))
     if not stat then
+        DEBUG("Event Crashed!")
         quit(err or "")
     end
 end)
