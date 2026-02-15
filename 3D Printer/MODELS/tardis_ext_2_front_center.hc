@@ -1,0 +1,1 @@
+{light_level=0,shapes={off={{texture="natura:blocks/trap_door/nether/darkwood_trap_door",coords={0,0,2,16,16,3}}},on={{texture="natura:blocks/trap_door/nether/darkwood_trap_door",coords={15,0,2,16,16,10}},{texture="natura:blocks/trap_door/nether/darkwood_trap_door",coords={0,0,2,1,16,10}}}},noclip={off=false,on=false},button_mode=false,redstone_level=1}

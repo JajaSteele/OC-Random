@@ -1,0 +1,1 @@
+{light_level=0,shapes={off={{coords={0,0,2,16,16,3},texture="biomesoplenty:blocks/magic_planks"}},on={}},noclip={off=false,on=false},button_mode=false,redstone_level=0}
